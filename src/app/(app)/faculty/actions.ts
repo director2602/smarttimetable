@@ -1,9 +1,9 @@
 "use server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/db";
-import { faculty, facultyAvailability, auditLogs } from "@/db/schema";
+import { faculty, facultyAvailability, facultyBatches, batches, auditLogs } from "@/db/schema";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function editFaculty(formData: FormData) {
@@ -44,6 +44,37 @@ export async function editFaculty(formData: FormData) {
   }).where(and(eq(faculty.id, parsed.id), eq(faculty.organizationId, user.organizationId)));
 
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "FACULTY_EDITED", entityType: "faculty", entityId: parsed.id });
+  revalidatePath("/faculty");
+}
+
+export async function updateFacultyBatches(facultyId: string, batchIds: string[]) {
+  const user = await requirePermission("FACULTY_EDIT");
+
+  const existing = await db.query.faculty.findFirst({ where: eq(faculty.id, facultyId) });
+  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Faculty not found");
+
+  // Validate every batch belongs to this org before assigning
+  if (batchIds.length > 0) {
+    const validBatches = await db.query.batches.findMany({
+      where: and(eq(batches.organizationId, user.organizationId), inArray(batches.id, batchIds))
+    });
+    if (validBatches.length !== batchIds.length) throw new Error("One or more batches not found");
+  }
+
+  await db.delete(facultyBatches).where(eq(facultyBatches.facultyId, facultyId));
+  if (batchIds.length > 0) {
+    await db.insert(facultyBatches).values(batchIds.map((batchId) => ({ facultyId, batchId })));
+  }
+
+  await db.insert(auditLogs).values({
+    organizationId: user.organizationId,
+    userId: user.id,
+    action: "FACULTY_BATCHES_UPDATED",
+    entityType: "faculty",
+    entityId: facultyId,
+    metadata: JSON.stringify({ batchIds })
+  });
+
   revalidatePath("/faculty");
 }
 
