@@ -1,19 +1,21 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { batches, courses, batchSubjectRequirements, subjects, userPermissions } from "@/db/schema";
+import { batches, courses, batchSubjectRequirements, subjects, userPermissions, batchAvailability } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { resolvePermission, type Role } from "@/lib/permissions";
 import BatchEditForm from "./batch-edit-form";
+import BatchRosterForm from "./batch-roster-form";
 
 export default async function BatchesPage() {
   const user = await getCurrentUser();
   if (!user) return null;
-  const [rows, courseRows, reqRows, subjectRows, overrides] = await Promise.all([
+  const [rows, courseRows, reqRows, subjectRows, overrides, availRows] = await Promise.all([
     db.query.batches.findMany({ where: eq(batches.organizationId, user.organizationId) }),
     db.query.courses.findMany({ where: eq(courses.organizationId, user.organizationId) }),
     db.query.batchSubjectRequirements.findMany(),
     db.query.subjects.findMany({ where: eq(subjects.organizationId, user.organizationId) }),
-    db.query.userPermissions.findMany({ where: eq(userPermissions.userId, user.id) })
+    db.query.userPermissions.findMany({ where: eq(userPermissions.userId, user.id) }),
+    db.query.batchAvailability.findMany()
   ]);
   const courseById = new Map(courseRows.map((c) => [c.id, c]));
   const subjById = new Map(subjectRows.map((s) => [s.id, s]));
@@ -47,6 +49,13 @@ export default async function BatchesPage() {
               <div className="mt-2">
                 <BatchEditForm batch={b} canEdit={canEdit} />
               </div>
+              <BatchRosterForm
+                batchId={b.id}
+                availability={Object.fromEntries(
+                  availRows.filter((a) => a.batchId === b.id).map((a) => [a.dayOfWeek, a.available])
+                )}
+                canEdit={canEdit}
+              />
             </div>
           );
         })}

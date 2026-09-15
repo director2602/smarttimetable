@@ -1,7 +1,7 @@
 "use server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/db";
-import { batches, auditLogs } from "@/db/schema";
+import { batches, auditLogs, batchAvailability } from "@/db/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -14,6 +14,43 @@ const editSchema = z.object({
   maxClassesPerDay: z.coerce.number().int().min(1),
   maxConsecutiveClasses: z.coerce.number().int().min(1)
 });
+
+export async function updateBatchAvailability(batchId: string, days: { dayOfWeek: number; available: boolean }[]) {
+  const user = await requirePermission("BATCH_EDIT");
+
+  const existing = await db.query.batches.findFirst({ where: eq(batches.id, batchId) });
+  if (!existing || existing.organizationId !== user.organizationId) {
+    throw new Error("Batch not found");
+  }
+
+  for (const d of days) {
+    const row = await db.query.batchAvailability.findFirst({
+      where: and(eq(batchAvailability.batchId, batchId), eq(batchAvailability.dayOfWeek, d.dayOfWeek))
+    });
+    if (row) {
+      await db.update(batchAvailability).set({ available: d.available }).where(eq(batchAvailability.id, row.id));
+    } else {
+      await db.insert(batchAvailability).values({
+        batchId,
+        dayOfWeek: d.dayOfWeek,
+        available: d.available,
+        startTime: d.available ? "07:00" : null,
+        endTime: d.available ? "17:00" : null
+      });
+    }
+  }
+
+  await db.insert(auditLogs).values({
+    organizationId: user.organizationId,
+    userId: user.id,
+    action: "BATCH_ROSTER_UPDATED",
+    entityType: "batch",
+    entityId: batchId,
+    metadata: JSON.stringify({ days })
+  });
+
+  revalidatePath("/batches");
+}
 
 export async function editBatch(formData: FormData) {
   const user = await requirePermission("BATCH_EDIT");
