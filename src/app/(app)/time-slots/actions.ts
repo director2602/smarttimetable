@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 const slotSchema = z.object({
   startTime: z.string().min(1),
   endTime: z.string().min(1),
-  type: z.enum(["CLASS", "BREAK"]),
+  type: z.enum(["CLASS", "BREAK", "DOUBTS", "DAY", "DATE"]),
   sortOrder: z.coerce.number().int()
 });
 

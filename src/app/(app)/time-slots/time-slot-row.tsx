@@ -7,7 +7,7 @@ import { editTimeSlot, deleteTimeSlot } from "./actions";
 export default function TimeSlotRow({
   slot
 }: {
-  slot: { id: string; startTime: string; endTime: string; type: "CLASS" | "BREAK" };
+  slot: { id: string; startTime: string; endTime: string; type: "CLASS" | "BREAK" | "DOUBTS" | "DAY" | "DATE" };
 }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -35,6 +35,9 @@ export default function TimeSlotRow({
               <select name="type" defaultValue={slot.type} className="input">
                 <option value="CLASS">CLASS</option>
                 <option value="BREAK">BREAK</option>
+                <option value="DOUBTS">DOUBTS</option>
+                <option value="DAY">DAY</option>
+                <option value="DATE">DATE</option>
               </select>
             </div>
             <input type="hidden" name="sortOrder" value={0} />
@@ -50,7 +53,7 @@ export default function TimeSlotRow({
     <tr className="border-t border-slate-100">
       <td className="px-4 py-2">{slot.startTime}</td>
       <td className="px-4 py-2">{slot.endTime}</td>
-      <td className="px-4 py-2">{slot.type === "BREAK" ? <span className="text-amber-600">BREAK</span> : "CLASS"}</td>
+      <td className="px-4 py-2">{slot.type === "BREAK" ? <span className="text-amber-600">BREAK</span> : slot.type === "CLASS" ? "CLASS" : <span className="text-brand-500">{slot.type}</span>}</td>
       <td className="px-4 py-2 text-right space-x-3">
         <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(true)}>Edit</button>
         <button

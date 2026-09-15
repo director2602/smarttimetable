@@ -220,7 +220,7 @@ export const timeSlots = sqliteTable("time_slots", {
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
-  type: text("type", { enum: ["CLASS", "BREAK"] }).notNull().default("CLASS"),
+  type: text("type", { enum: ["CLASS", "BREAK", "DOUBTS", "DAY", "DATE"] }).notNull().default("CLASS"),
   sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps
 });
