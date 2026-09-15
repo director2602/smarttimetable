@@ -1,17 +1,23 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { faculty, facultySubjects, subjects } from "@/db/schema";
+import { faculty, facultySubjects, subjects, userPermissions, facultyAvailability } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { resolvePermission, type Role } from "@/lib/permissions";
+import FacultyRosterForm from "./faculty-roster-form";
+import { Fragment } from "react";
 
 export default async function FacultyPage() {
   const user = await getCurrentUser();
   if (!user) return null;
-  const [rows, fsRows, subjectRows] = await Promise.all([
+  const [rows, fsRows, subjectRows, overrides, availRows] = await Promise.all([
     db.query.faculty.findMany({ where: eq(faculty.organizationId, user.organizationId) }),
     db.query.facultySubjects.findMany(),
-    db.query.subjects.findMany({ where: eq(subjects.organizationId, user.organizationId) })
+    db.query.subjects.findMany({ where: eq(subjects.organizationId, user.organizationId) }),
+    db.query.userPermissions.findMany({ where: eq(userPermissions.userId, user.id) }),
+    db.query.facultyAvailability.findMany()
   ]);
   const subjById = new Map(subjectRows.map((s) => [s.id, s]));
+  const canEdit = resolvePermission(user.role as Role, overrides, "FACULTY_EDIT");
 
   return (
     <div className="space-y-6">
@@ -23,14 +29,27 @@ export default async function FacultyPage() {
           </thead>
           <tbody>
             {rows.map((f) => (
-              <tr key={f.id} className="border-t border-slate-100">
-                <td className="px-4 py-2 font-medium">{f.name}</td>
-                <td className="px-4 py-2">{f.employeeId}</td>
-                <td className="px-4 py-2">{fsRows.filter((x) => x.facultyId === f.id).map((x) => subjById.get(x.subjectId)?.name).join(", ")}</td>
-                <td className="px-4 py-2">{f.maxClassesPerDay}</td>
-                <td className="px-4 py-2">{f.maxClassesPerWeek}</td>
-                <td className="px-4 py-2">{f.status}</td>
-              </tr>
+              <Fragment key={f.id}>
+                <tr className="border-t border-slate-100">
+                  <td className="px-4 py-2 font-medium">{f.name}</td>
+                  <td className="px-4 py-2">{f.employeeId}</td>
+                  <td className="px-4 py-2">{fsRows.filter((x) => x.facultyId === f.id).map((x) => subjById.get(x.subjectId)?.name).join(", ")}</td>
+                  <td className="px-4 py-2">{f.maxClassesPerDay}</td>
+                  <td className="px-4 py-2">{f.maxClassesPerWeek}</td>
+                  <td className="px-4 py-2">{f.status}</td>
+                </tr>
+                <tr className="bg-slate-50/50">
+                  <td colSpan={6} className="px-4 pb-3 pt-1">
+                    <FacultyRosterForm
+                      facultyId={f.id}
+                      availability={Object.fromEntries(
+                        availRows.filter((a) => a.facultyId === f.id).map((a) => [a.dayOfWeek, a.available])
+                      )}
+                      canEdit={canEdit}
+                    />
+                  </td>
+                </tr>
+              </Fragment>
             ))}
           </tbody>
         </table>
