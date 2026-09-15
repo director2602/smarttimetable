@@ -46,6 +46,7 @@ export default async function TimetableDetailPage({ params }: { params: { id: st
         </div>
         <div className="flex gap-2">
           <a href={`/timetable/${tt.id}/pdf`} className="btn-secondary">Download PDF</a>
+          <a href={`/timetable/${tt.id}/excel`} className="btn-secondary">Download Excel</a>
           {tt.status !== "PUBLISHED" && <PublishButton timetableId={tt.id} />}
         </div>
       </div>
