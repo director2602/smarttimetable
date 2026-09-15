@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { getCurrentUser } from "@/lib/auth";
 
 const NAV = [
@@ -41,9 +42,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen flex">
       <aside className="w-64 bg-brand-900 text-white flex flex-col shrink-0">
-        <div className="px-5 py-5 border-b border-white/10">
-          <div className="font-bold text-lg">S-CUBUS</div>
-          <div className="text-xs text-brand-100/70">Timetable Management</div>
+        <div className="px-5 py-5 border-b border-white/10 flex items-center gap-3">
+          <Image src="/logo.png" alt="S-CUBUS" width={36} height={41} />
+          <div>
+            <div className="font-bold text-lg leading-tight">S-CUBUS</div>
+            <div className="text-xs text-brand-100/70">Timetable Management</div>
+          </div>
         </div>
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
           {NAV.map((s) => (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
+import Image from "next/image";
 import { loginAction } from "./actions";
 
 function SubmitButton() {
@@ -19,6 +20,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-brand-900 px-4">
       <div className="card w-full max-w-sm p-8">
         <div className="text-center mb-6">
+          <Image src="/logo.png" alt="S-CUBUS" width={72} height={82} className="mx-auto mb-3" />
           <div className="text-brand-700 font-bold text-2xl tracking-tight">S-CUBUS</div>
           <div className="text-slate-500 text-sm mt-1">Timetable Management</div>
         </div>

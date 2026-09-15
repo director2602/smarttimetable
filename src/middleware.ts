@@ -9,7 +9,13 @@ const PUBLIC_PATHS = ["/login"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith("/_next") || pathname.startsWith("/api/health")) {
+  if (
+    pathname === "/" ||
+    PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api/health") ||
+    pathname.startsWith("/logo.png")
+  ) {
     return NextResponse.next();
   }
 

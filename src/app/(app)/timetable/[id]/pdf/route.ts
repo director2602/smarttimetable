@@ -4,8 +4,9 @@ import { db } from "@/db";
 import { timetables, timetableEntries, batches, courses, subjects, faculty, rooms, instituteSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image as PdfImage } from "@react-pdf/renderer";
 import React from "react";
+import path from "path";
 
 const styles = StyleSheet.create({
   page: { padding: 28, fontSize: 9, fontFamily: "Helvetica" },
@@ -20,6 +21,7 @@ const styles = StyleSheet.create({
   cellFaculty: { width: "24%" },
   cellRoom: { width: "24%" },
   headerRow: { flexDirection: "row", backgroundColor: "#eef6f8", paddingVertical: 3, fontWeight: 700 },
+  logo: { width: 40, height: 46, marginBottom: 6 },
   footer: { position: "absolute", bottom: 16, left: 28, right: 28, fontSize: 7, color: "#888", flexDirection: "row", justifyContent: "space-between" }
 });
 
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     React.createElement(
       Page,
       { size: "A4", style: styles.page, wrap: true },
+      React.createElement(PdfImage, { src: path.join(process.cwd(), "public", "logo.png"), style: styles.logo }),
       React.createElement(Text, { style: styles.title }, settings?.instituteName || "Institute"),
       React.createElement(Text, { style: styles.subtitle }, `Weekly Timetable — Week of ${tt.weekStartDate}`),
       ...courseRows.map((course) => {
