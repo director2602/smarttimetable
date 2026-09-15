@@ -1,19 +1,23 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { batches, courses, batchSubjectRequirements, subjects } from "@/db/schema";
+import { batches, courses, batchSubjectRequirements, subjects, userPermissions } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { resolvePermission, type Role } from "@/lib/permissions";
+import BatchEditForm from "./batch-edit-form";
 
 export default async function BatchesPage() {
   const user = await getCurrentUser();
   if (!user) return null;
-  const [rows, courseRows, reqRows, subjectRows] = await Promise.all([
+  const [rows, courseRows, reqRows, subjectRows, overrides] = await Promise.all([
     db.query.batches.findMany({ where: eq(batches.organizationId, user.organizationId) }),
     db.query.courses.findMany({ where: eq(courses.organizationId, user.organizationId) }),
     db.query.batchSubjectRequirements.findMany(),
-    db.query.subjects.findMany({ where: eq(subjects.organizationId, user.organizationId) })
+    db.query.subjects.findMany({ where: eq(subjects.organizationId, user.organizationId) }),
+    db.query.userPermissions.findMany({ where: eq(userPermissions.userId, user.id) })
   ]);
   const courseById = new Map(courseRows.map((c) => [c.id, c]));
   const subjById = new Map(subjectRows.map((s) => [s.id, s]));
+  const canEdit = resolvePermission(user.role as Role, overrides, "BATCH_EDIT");
 
   return (
     <div className="space-y-6">
@@ -39,6 +43,9 @@ export default async function BatchesPage() {
                     {subjById.get(r.subjectId)?.name} × {r.classesPerWeek}/wk
                   </span>
                 ))}
+              </div>
+              <div className="mt-2">
+                <BatchEditForm batch={b} canEdit={canEdit} />
               </div>
             </div>
           );
