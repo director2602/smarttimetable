@@ -8,6 +8,7 @@ const NAV = [
   {
     section: "Master Data",
     items: [
+      { href: "/bulk-import", label: "Bulk Setup (Excel)" },
       { href: "/academic-sessions", label: "Academic Sessions" },
       { href: "/courses", label: "Courses" },
       { href: "/batches", label: "Batches" },
