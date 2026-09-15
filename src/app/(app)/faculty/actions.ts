@@ -1,10 +1,11 @@
 "use server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/db";
-import { faculty, facultyAvailability, facultyBatches, batches, auditLogs } from "@/db/schema";
+import { faculty, facultyAvailability, facultyBatches, facultySubjects, subjects, batches, auditLogs } from "@/db/schema";
 import { z } from "zod";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import * as XLSX from "xlsx";
 
 export async function editFaculty(formData: FormData) {
   const user = await requirePermission("FACULTY_EDIT");
@@ -45,6 +46,103 @@ export async function editFaculty(formData: FormData) {
 
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "FACULTY_EDITED", entityType: "faculty", entityId: parsed.id });
   revalidatePath("/faculty");
+}
+
+export async function importFacultyFromExcel(formData: FormData) {
+  const user = await requirePermission("FACULTY_CREATE");
+  const file = formData.get("file") as File | null;
+  if (!file || file.size === 0) throw new Error("No file uploaded");
+
+  const arrayBuffer = await file.arrayBuffer();
+  const wb = XLSX.read(Buffer.from(arrayBuffer), { type: "buffer" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  if (!sheet) throw new Error("The uploaded file has no sheets");
+  const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
+
+  if (rows.length === 0) throw new Error("No data rows found in the sheet");
+
+  const [orgSubjects, orgBatches, orgFaculty] = await Promise.all([
+    db.query.subjects.findMany({ where: eq(subjects.organizationId, user.organizationId) }),
+    db.query.batches.findMany({ where: eq(batches.organizationId, user.organizationId) }),
+    db.query.faculty.findMany({ where: eq(faculty.organizationId, user.organizationId) })
+  ]);
+  const subjectByKey = new Map(orgSubjects.map((s) => [s.name.toLowerCase(), s]));
+  for (const s of orgSubjects) subjectByKey.set(s.code.toLowerCase(), s);
+  const batchByKey = new Map(orgBatches.map((b) => [b.name.toLowerCase(), b]));
+  const facultyByEmpId = new Map(orgFaculty.map((f) => [f.employeeId.toLowerCase(), f]));
+
+  let created = 0;
+  let updated = 0;
+  const warnings: string[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const rowNum = i + 2; // account for header row
+    const name = String(r["Name"] || "").trim();
+    const employeeId = String(r["Employee ID"] || "").trim();
+    if (!name || !employeeId) {
+      warnings.push(`Row ${rowNum}: missing Name or Employee ID — skipped`);
+      continue;
+    }
+
+    const subjectNames = String(r["Subjects"] || "").split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+    const batchNames = String(r["Batches"] || "").split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+    const email = String(r["Email"] || "").trim() || null;
+    const phone = String(r["Phone"] || "").trim() || null;
+    const maxPerDay = Number(r["Max Per Day"]) || 6;
+    const maxPerWeek = Number(r["Max Per Week"]) || 30;
+
+    let facultyRow = facultyByEmpId.get(employeeId.toLowerCase());
+    if (facultyRow) {
+      await db.update(faculty).set({
+        name, email, phone, maxClassesPerDay: maxPerDay, maxClassesPerWeek: maxPerWeek, updatedAt: new Date().toISOString()
+      }).where(eq(faculty.id, facultyRow.id));
+      updated++;
+    } else {
+      const [newRow] = await db.insert(faculty).values({
+        organizationId: user.organizationId, name, employeeId, email, phone,
+        maxClassesPerDay: maxPerDay, maxClassesPerWeek: maxPerWeek, status: "ACTIVE"
+      }).returning();
+      facultyRow = newRow;
+      facultyByEmpId.set(employeeId.toLowerCase(), newRow);
+      created++;
+      // Default availability: Mon-Sat working, Sunday off
+      for (let d = 0; d <= 6; d++) {
+        await db.insert(facultyAvailability).values({
+          facultyId: newRow.id, dayOfWeek: d, available: d !== 0,
+          startTime: d !== 0 ? "07:00" : null, endTime: d !== 0 ? "17:00" : null
+        });
+      }
+    }
+
+    // Subjects: link every matched subject; report unmatched names
+    for (const sName of subjectNames) {
+      const subj = subjectByKey.get(sName.toLowerCase());
+      if (!subj) { warnings.push(`Row ${rowNum}: subject "${sName}" not found — create it under Subjects first`); continue; }
+      const existingLink = await db.query.facultySubjects.findFirst({
+        where: and(eq(facultySubjects.facultyId, facultyRow.id), eq(facultySubjects.subjectId, subj.id))
+      });
+      if (!existingLink) await db.insert(facultySubjects).values({ facultyId: facultyRow.id, subjectId: subj.id }).onConflictDoNothing();
+    }
+
+    // Batches: link every matched batch; report unmatched names
+    for (const bName of batchNames) {
+      const batch = batchByKey.get(bName.toLowerCase());
+      if (!batch) { warnings.push(`Row ${rowNum}: batch "${bName}" not found — create it under Batches first`); continue; }
+      const existingLink = await db.query.facultyBatches.findFirst({
+        where: and(eq(facultyBatches.facultyId, facultyRow.id), eq(facultyBatches.batchId, batch.id))
+      });
+      if (!existingLink) await db.insert(facultyBatches).values({ facultyId: facultyRow.id, batchId: batch.id }).onConflictDoNothing();
+    }
+  }
+
+  await db.insert(auditLogs).values({
+    organizationId: user.organizationId, userId: user.id, action: "FACULTY_IMPORTED",
+    metadata: JSON.stringify({ rows: rows.length, created, updated, warnings: warnings.length })
+  });
+
+  revalidatePath("/faculty");
+  return { rowsProcessed: rows.length, created, updated, warnings };
 }
 
 export async function updateFacultyBatches(facultyId: string, batchIds: string[]) {
