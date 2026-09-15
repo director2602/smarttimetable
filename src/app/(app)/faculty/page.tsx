@@ -4,6 +4,7 @@ import { faculty, facultySubjects, subjects, userPermissions, facultyAvailabilit
 import { eq } from "drizzle-orm";
 import { resolvePermission, type Role } from "@/lib/permissions";
 import FacultyRosterForm from "./faculty-roster-form";
+import FacultyEditForm from "./faculty-edit-form";
 import { Fragment } from "react";
 
 export default async function FacultyPage() {
@@ -25,7 +26,7 @@ export default async function FacultyPage() {
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-slate-500">
-            <tr><th className="px-4 py-2">Name</th><th className="px-4 py-2">Employee ID</th><th className="px-4 py-2">Subjects</th><th className="px-4 py-2">Max/day</th><th className="px-4 py-2">Max/week</th><th className="px-4 py-2">Status</th></tr>
+            <tr><th className="px-4 py-2">Name</th><th className="px-4 py-2">Employee ID</th><th className="px-4 py-2">Subjects</th><th className="px-4 py-2">Max/day</th><th className="px-4 py-2">Max/week</th><th className="px-4 py-2">Status</th><th className="px-4 py-2"></th></tr>
           </thead>
           <tbody>
             {rows.map((f) => (
@@ -37,9 +38,12 @@ export default async function FacultyPage() {
                   <td className="px-4 py-2">{f.maxClassesPerDay}</td>
                   <td className="px-4 py-2">{f.maxClassesPerWeek}</td>
                   <td className="px-4 py-2">{f.status}</td>
+                  <td className="px-4 py-2 text-right">
+                    <FacultyEditForm f={f} canEdit={canEdit} />
+                  </td>
                 </tr>
                 <tr className="bg-slate-50/50">
-                  <td colSpan={6} className="px-4 pb-3 pt-1">
+                  <td colSpan={7} className="px-4 pb-3 pt-1">
                     <FacultyRosterForm
                       facultyId={f.id}
                       availability={Object.fromEntries(

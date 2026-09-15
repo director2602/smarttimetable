@@ -1,8 +1,9 @@
 "use server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/db";
-import { courses } from "@/db/schema";
+import { courses, auditLogs } from "@/db/schema";
 import { z } from "zod";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function createCourse(formData: FormData) {
@@ -11,5 +12,21 @@ export async function createCourse(formData: FormData) {
     name: formData.get("name"), code: formData.get("code")
   });
   await db.insert(courses).values({ organizationId: user.organizationId, name, code });
+  revalidatePath("/courses");
+}
+
+export async function editCourse(formData: FormData) {
+  const user = await requirePermission("COURSE_EDIT");
+  const id = formData.get("id") as string;
+  const { name, code, status } = z.object({
+    name: z.string().min(1), code: z.string().min(1), status: z.enum(["ACTIVE", "ARCHIVED"])
+  }).parse({ name: formData.get("name"), code: formData.get("code"), status: formData.get("status") });
+
+  const existing = await db.query.courses.findFirst({ where: eq(courses.id, id) });
+  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Course not found");
+
+  await db.update(courses).set({ name, code, status, updatedAt: new Date().toISOString() })
+    .where(and(eq(courses.id, id), eq(courses.organizationId, user.organizationId)));
+  await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "COURSE_EDITED", entityType: "course", entityId: id });
   revalidatePath("/courses");
 }

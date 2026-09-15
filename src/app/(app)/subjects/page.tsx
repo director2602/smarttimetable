@@ -1,13 +1,21 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { subjects } from "@/db/schema";
+import { subjects, userPermissions } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { resolvePermission, type Role } from "@/lib/permissions";
 import { createSubject } from "./actions";
+import SubjectEditForm from "./subject-edit-form";
+import { Fragment } from "react";
 
 export default async function SubjectsPage() {
   const user = await getCurrentUser();
   if (!user) return null;
-  const rows = await db.query.subjects.findMany({ where: eq(subjects.organizationId, user.organizationId) });
+  const [rows, overrides] = await Promise.all([
+    db.query.subjects.findMany({ where: eq(subjects.organizationId, user.organizationId) }),
+    db.query.userPermissions.findMany({ where: eq(userPermissions.userId, user.id) })
+  ]);
+  const canEdit = resolvePermission(user.role as Role, overrides, "SUBJECT_EDIT");
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Subjects</h1>
@@ -20,9 +28,14 @@ export default async function SubjectsPage() {
       </div>
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500"><tr><th className="px-4 py-2">Name</th><th className="px-4 py-2">Code</th></tr></thead>
+          <thead className="bg-slate-50 text-left text-slate-500"><tr><th className="px-4 py-2">Name</th><th className="px-4 py-2">Code</th><th className="px-4 py-2"></th></tr></thead>
           <tbody>{rows.map((r) => (
-            <tr key={r.id} className="border-t border-slate-100"><td className="px-4 py-2">{r.name}</td><td className="px-4 py-2">{r.code}</td></tr>
+            <Fragment key={r.id}>
+              <tr className="border-t border-slate-100">
+                <td className="px-4 py-2">{r.name}</td><td className="px-4 py-2">{r.code}</td>
+                <td className="px-4 py-2 text-right"><SubjectEditForm subject={r} canEdit={canEdit} /></td>
+              </tr>
+            </Fragment>
           ))}</tbody>
         </table>
       </div>

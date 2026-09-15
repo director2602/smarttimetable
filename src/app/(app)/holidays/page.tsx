@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { holidays } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createHoliday } from "./actions";
+import HolidayRow from "./holiday-row";
 
 export default async function HolidaysPage() {
   const user = await getCurrentUser();
@@ -20,10 +21,8 @@ export default async function HolidaysPage() {
       </div>
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500"><tr><th className="px-4 py-2">Date</th><th className="px-4 py-2">Name</th></tr></thead>
-          <tbody>{rows.map((h) => (
-            <tr key={h.id} className="border-t border-slate-100"><td className="px-4 py-2">{h.date}</td><td className="px-4 py-2">{h.name}</td></tr>
-          ))}</tbody>
+          <thead className="bg-slate-50 text-left text-slate-500"><tr><th className="px-4 py-2">Date</th><th className="px-4 py-2">Name</th><th className="px-4 py-2"></th></tr></thead>
+          <tbody>{rows.map((h) => <HolidayRow key={h.id} holiday={h} />)}</tbody>
         </table>
       </div>
     </div>

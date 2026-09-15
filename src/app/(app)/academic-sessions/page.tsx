@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { academicSessions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createAcademicSession } from "./actions";
+import SessionRow from "./session-row";
 
 export default async function AcademicSessionsPage() {
   const user = await getCurrentUser();
@@ -22,15 +23,8 @@ export default async function AcademicSessionsPage() {
       </div>
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500"><tr><th className="px-4 py-2">Name</th><th className="px-4 py-2">Start</th><th className="px-4 py-2">End</th><th className="px-4 py-2">Active</th></tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-t border-slate-100">
-                <td className="px-4 py-2">{r.name}</td><td className="px-4 py-2">{r.startDate}</td><td className="px-4 py-2">{r.endDate}</td>
-                <td className="px-4 py-2">{r.active ? "Yes" : "No"}</td>
-              </tr>
-            ))}
-          </tbody>
+          <thead className="bg-slate-50 text-left text-slate-500"><tr><th className="px-4 py-2">Name</th><th className="px-4 py-2">Start</th><th className="px-4 py-2">End</th><th className="px-4 py-2">Active</th><th className="px-4 py-2"></th></tr></thead>
+          <tbody>{rows.map((r) => <SessionRow key={r.id} session={r} />)}</tbody>
         </table>
       </div>
     </div>
