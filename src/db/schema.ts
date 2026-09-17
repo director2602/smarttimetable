@@ -131,7 +131,8 @@ export const batchAvailability = pgTable("batch_availability", {
   dayOfWeek: integer("day_of_week").notNull(), // 0=Sun..6=Sat
   available: boolean("available").notNull().default(true),
   startTime: text("start_time"),
-  endTime: text("end_time")
+  endTime: text("end_time"),
+  shift: text("shift", { enum: ["NONE", "MORNING", "EVENING"] }).notNull().default("NONE")
 }, (t) => ({ uq: uniqueIndex("batch_avail_uq").on(t.batchId, t.dayOfWeek) }));
 
 /* ---------------- FACULTY ---------------- */

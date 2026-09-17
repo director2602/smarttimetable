@@ -1,0 +1,1 @@
+ALTER TABLE "batch_availability" ADD COLUMN "shift" text DEFAULT 'NONE' NOT NULL;

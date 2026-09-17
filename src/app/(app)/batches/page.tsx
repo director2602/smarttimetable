@@ -4,8 +4,7 @@ import { batches, courses, batchSubjectRequirements, subjects, userPermissions, 
 import { eq } from "drizzle-orm";
 import { resolvePermission, type Role } from "@/lib/permissions";
 import BatchEditForm from "./batch-edit-form";
-import BatchRosterForm from "./batch-roster-form";
-import BatchShiftForm from "./batch-shift-form";
+import BatchDayShiftForm from "./batch-day-shift-form";
 import BatchRequirementsForm from "./batch-requirements-form";
 import BatchSlotSelectionForm from "./batch-slot-selection-form";
 
@@ -41,6 +40,10 @@ export default async function BatchesPage() {
           const reqs = reqRows.filter((r) => r.batchId === b.id).map((r) => ({
             subjectId: r.subjectId, subjectName: subjById.get(r.subjectId)?.name || "Unknown", classesPerWeek: r.classesPerWeek
           }));
+          const dayInitial: Record<number, { available: boolean; shift: "NONE" | "MORNING" | "EVENING" }> = {};
+          for (const a of availRows.filter((a) => a.batchId === b.id)) {
+            dayInitial[a.dayOfWeek] = { available: a.available, shift: (a.shift || "NONE") as "NONE" | "MORNING" | "EVENING" };
+          }
           return (
             <div key={b.id} className="card p-4">
               <div className="flex justify-between items-start">
@@ -54,14 +57,7 @@ export default async function BatchesPage() {
               <div className="mt-2">
                 <BatchEditForm batch={b} canEdit={canEdit} canDelete={canDelete} />
               </div>
-              <BatchShiftForm batchId={b.id} currentShift={b.shift as "NONE" | "MORNING" | "EVENING"} canEdit={canEdit} />
-              <BatchRosterForm
-                batchId={b.id}
-                availability={Object.fromEntries(
-                  availRows.filter((a) => a.batchId === b.id).map((a) => [a.dayOfWeek, a.available])
-                )}
-                canEdit={canEdit}
-              />
+              <BatchDayShiftForm batchId={b.id} initial={dayInitial} canEdit={canEdit} />
               <div className="mt-2">
                 <BatchSlotSelectionForm
                   batchId={b.id}

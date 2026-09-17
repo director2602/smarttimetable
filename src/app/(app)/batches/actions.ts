@@ -72,6 +72,45 @@ const SHIFT_TIMES: Record<"MORNING" | "EVENING", { startTime: string; endTime: s
   EVENING: { startTime: "15:00", endTime: "20:00" }
 };
 
+export async function updateBatchDayShifts(
+  batchId: string,
+  days: { dayOfWeek: number; available: boolean; shift: "NONE" | "MORNING" | "EVENING" }[]
+) {
+  const user = await requirePermission("BATCH_EDIT");
+  const batch = await db.query.batches.findFirst({ where: eq(batches.id, batchId) });
+  if (!batch || batch.organizationId !== user.organizationId) return { error: "Batch not found" };
+
+  for (const d of days) {
+    let startTime: string | null = null;
+    let endTime: string | null = null;
+    if (d.available) {
+      if (d.shift !== "NONE") {
+        startTime = SHIFT_TIMES[d.shift].startTime;
+        endTime = SHIFT_TIMES[d.shift].endTime;
+      } else {
+        startTime = "07:00";
+        endTime = "17:00";
+      }
+    }
+
+    const existing = await db.query.batchAvailability.findFirst({
+      where: and(eq(batchAvailability.batchId, batchId), eq(batchAvailability.dayOfWeek, d.dayOfWeek))
+    });
+    if (existing) {
+      await db.update(batchAvailability).set({ available: d.available, shift: d.shift, startTime, endTime }).where(eq(batchAvailability.id, existing.id));
+    } else {
+      await db.insert(batchAvailability).values({ batchId, dayOfWeek: d.dayOfWeek, available: d.available, shift: d.shift, startTime, endTime });
+    }
+  }
+
+  await db.insert(auditLogs).values({
+    organizationId: user.organizationId, userId: user.id, action: "BATCH_DAY_SHIFTS_UPDATED",
+    entityType: "batch", entityId: batchId, metadata: JSON.stringify({ days })
+  });
+  revalidatePath("/batches");
+  return { success: true };
+}
+
 export async function setBatchShift(batchId: string, shift: "NONE" | "MORNING" | "EVENING") {
   const user = await requirePermission("BATCH_EDIT");
   const batch = await db.query.batches.findFirst({ where: eq(batches.id, batchId) });
