@@ -29,6 +29,13 @@
       "when": 1789667197658,
       "tag": "0003_fresh_true_believers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789667474474,
+      "tag": "0004_opposite_hiroim",
+      "breakpoints": true
     }
   ]
 }

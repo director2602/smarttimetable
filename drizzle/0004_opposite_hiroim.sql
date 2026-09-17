@@ -1,0 +1,1 @@
+ALTER TABLE "batches" ADD COLUMN "shift" text DEFAULT 'NONE' NOT NULL;

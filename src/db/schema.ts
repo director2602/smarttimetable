@@ -104,6 +104,7 @@ export const batches = pgTable("batches", {
   maxClassesPerDay: integer("max_classes_per_day").notNull().default(6),
   maxConsecutiveClasses: integer("max_consecutive_classes").notNull().default(3),
   status: text("status", { enum: ["ACTIVE", "ARCHIVED"] }).notNull().default("ACTIVE"),
+  shift: text("shift", { enum: ["NONE", "MORNING", "EVENING"] }).notNull().default("NONE"),
   ...timestamps
 }, (t) => ({ orgCodeUq: uniqueIndex("batches_org_code_uq").on(t.organizationId, t.code) }));
 

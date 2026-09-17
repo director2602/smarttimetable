@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { resolvePermission, type Role } from "@/lib/permissions";
 import BatchEditForm from "./batch-edit-form";
 import BatchRosterForm from "./batch-roster-form";
+import BatchShiftForm from "./batch-shift-form";
 import BatchRequirementsForm from "./batch-requirements-form";
 import BatchSlotSelectionForm from "./batch-slot-selection-form";
 
@@ -53,6 +54,7 @@ export default async function BatchesPage() {
               <div className="mt-2">
                 <BatchEditForm batch={b} canEdit={canEdit} canDelete={canDelete} />
               </div>
+              <BatchShiftForm batchId={b.id} currentShift={b.shift as "NONE" | "MORNING" | "EVENING"} canEdit={canEdit} />
               <BatchRosterForm
                 batchId={b.id}
                 availability={Object.fromEntries(

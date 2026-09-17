@@ -67,27 +67,75 @@ const editSchema = z.object({
   maxConsecutiveClasses: z.coerce.number().int().min(1)
 });
 
+const SHIFT_TIMES: Record<"MORNING" | "EVENING", { startTime: string; endTime: string }> = {
+  MORNING: { startTime: "08:00", endTime: "14:30" },
+  EVENING: { startTime: "15:00", endTime: "20:00" }
+};
+
+export async function setBatchShift(batchId: string, shift: "NONE" | "MORNING" | "EVENING") {
+  const user = await requirePermission("BATCH_EDIT");
+  const batch = await db.query.batches.findFirst({ where: eq(batches.id, batchId) });
+  if (!batch || batch.organizationId !== user.organizationId) return { error: "Batch not found" };
+
+  await db.update(batches).set({ shift, updatedAt: new Date().toISOString() })
+    .where(and(eq(batches.id, batchId), eq(batches.organizationId, user.organizationId)));
+
+  if (shift !== "NONE") {
+    const times = SHIFT_TIMES[shift];
+    const existingRows = await db.query.batchAvailability.findMany({ where: eq(batchAvailability.batchId, batchId) });
+
+    if (existingRows.length === 0) {
+      // No roster configured yet — default to Mon-Sat working, Sunday off, at this shift's hours
+      for (let d = 0; d <= 6; d++) {
+        const available = d !== 0;
+        await db.insert(batchAvailability).values({
+          batchId, dayOfWeek: d, available,
+          startTime: available ? times.startTime : null, endTime: available ? times.endTime : null
+        });
+      }
+    } else {
+      for (const row of existingRows) {
+        if (!row.available) continue; // leave week-off days alone
+        await db.update(batchAvailability).set({ startTime: times.startTime, endTime: times.endTime }).where(eq(batchAvailability.id, row.id));
+      }
+    }
+  }
+
+  await db.insert(auditLogs).values({
+    organizationId: user.organizationId, userId: user.id, action: "BATCH_SHIFT_SET",
+    entityType: "batch", entityId: batchId, metadata: JSON.stringify({ shift })
+  });
+  revalidatePath("/batches");
+  return { success: true };
+}
+
 export async function updateBatchAvailability(batchId: string, days: { dayOfWeek: number; available: boolean }[]) {
   const user = await requirePermission("BATCH_EDIT");
 
   const existing = await db.query.batches.findFirst({ where: eq(batches.id, batchId) });
   if (!existing || existing.organizationId !== user.organizationId) {
-    throw new Error("Batch not found");
+    return { error: "Batch not found" };
   }
+
+  const times = existing.shift !== "NONE" ? SHIFT_TIMES[existing.shift as "MORNING" | "EVENING"] : { startTime: "07:00", endTime: "17:00" };
 
   for (const d of days) {
     const row = await db.query.batchAvailability.findFirst({
       where: and(eq(batchAvailability.batchId, batchId), eq(batchAvailability.dayOfWeek, d.dayOfWeek))
     });
     if (row) {
-      await db.update(batchAvailability).set({ available: d.available }).where(eq(batchAvailability.id, row.id));
+      await db.update(batchAvailability).set({
+        available: d.available,
+        startTime: d.available ? (row.startTime || times.startTime) : null,
+        endTime: d.available ? (row.endTime || times.endTime) : null
+      }).where(eq(batchAvailability.id, row.id));
     } else {
       await db.insert(batchAvailability).values({
         batchId,
         dayOfWeek: d.dayOfWeek,
         available: d.available,
-        startTime: d.available ? "07:00" : null,
-        endTime: d.available ? "17:00" : null
+        startTime: d.available ? times.startTime : null,
+        endTime: d.available ? times.endTime : null
       });
     }
   }
@@ -102,6 +150,7 @@ export async function updateBatchAvailability(batchId: string, days: { dayOfWeek
   });
 
   revalidatePath("/batches");
+  return { success: true };
 }
 
 export async function deleteBatch(id: string) {
