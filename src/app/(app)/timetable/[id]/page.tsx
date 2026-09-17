@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { timetables, timetableEntries, batches, subjects, faculty, rooms, timeSlots } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import PublishButton from "./publish-button";
+import DeleteTimetableButton from "../delete-timetable-button";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -48,6 +49,7 @@ export default async function TimetableDetailPage({ params }: { params: { id: st
           <a href={`/timetable/${tt.id}/pdf`} className="btn-secondary">Download PDF</a>
           <a href={`/timetable/${tt.id}/excel`} className="btn-secondary">Download Excel</a>
           {tt.status !== "PUBLISHED" && <PublishButton timetableId={tt.id} />}
+          <DeleteTimetableButton id={tt.id} weekStartDate={tt.weekStartDate} />
         </div>
       </div>
 

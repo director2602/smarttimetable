@@ -1,17 +1,23 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { timetables } from "@/db/schema";
+import { timetables, userPermissions } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
+import { resolvePermission, type Role } from "@/lib/permissions";
+import DeleteTimetableButton from "./delete-timetable-button";
 
 export default async function TimetableListPage() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const rows = await db.query.timetables.findMany({
-    where: eq(timetables.organizationId, user.organizationId),
-    orderBy: [desc(timetables.createdAt)]
-  });
+  const [rows, overrides] = await Promise.all([
+    db.query.timetables.findMany({
+      where: eq(timetables.organizationId, user.organizationId),
+      orderBy: [desc(timetables.createdAt)]
+    }),
+    db.query.userPermissions.findMany({ where: eq(userPermissions.userId, user.id) })
+  ]);
+  const canDelete = resolvePermission(user.role as Role, overrides, "TIMETABLE_DELETE");
 
   return (
     <div className="space-y-6">
@@ -41,8 +47,9 @@ export default async function TimetableListPage() {
                 </td>
                 <td className="px-4 py-2">v{t.version}</td>
                 <td className="px-4 py-2">{t.qualityScore ?? "-"}</td>
-                <td className="px-4 py-2 text-right">
+                <td className="px-4 py-2 text-right space-x-3">
                   <Link href={`/timetable/${t.id}`} className="text-brand-600 hover:underline">View</Link>
+                  {canDelete && <DeleteTimetableButton id={t.id} weekStartDate={t.weekStartDate} />}
                 </td>
               </tr>
             ))}
