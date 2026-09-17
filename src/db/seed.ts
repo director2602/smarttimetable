@@ -1,9 +1,17 @@
-import { db, sqlite } from "./index";
+import { db, sqlClient } from "./index";
 import * as schema from "./schema";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
+import { eq } from "drizzle-orm";
 
 async function main() {
+  const existingOrg = await db.query.organizations.findFirst({ where: eq(schema.organizations.slug, "s-cubus") });
+  if (existingOrg) {
+    console.log("Seed data already present (organization 's-cubus' exists) — skipping to avoid overwriting real data.");
+    await sqlClient.end();
+    return;
+  }
+
   console.log("Seeding S-CUBUS SmartTimetable demo data...");
 
   const [org] = await db.insert(schema.organizations).values({
@@ -211,7 +219,7 @@ async function main() {
 
   console.log("Seed complete.");
   console.log("Owner login: owner@demo.local / Admin@12345");
-  sqlite.close();
+  await sqlClient.end();
 }
 
 main().catch((e) => {

@@ -1,15 +1,15 @@
-import { sqliteTable, text, integer, real, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, real, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
 const id = () => text("id").primaryKey().$defaultFn(() => crypto.randomUUID());
 const timestamps = {
-  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
-  updatedAt: text("updated_at").notNull().default(sql`(current_timestamp)`)
+  createdAt: text("created_at").notNull().default(sql`now()`),
+  updatedAt: text("updated_at").notNull().default(sql`now()`)
 };
 
 /* ---------------- ORGANIZATION ---------------- */
 
-export const organizations = sqliteTable("organizations", {
+export const organizations = pgTable("organizations", {
   id: id(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
@@ -22,7 +22,7 @@ export const organizations = sqliteTable("organizations", {
 export const roleEnum = ["OWNER", "ADMIN", "TIMETABLE_MANAGER", "FACULTY", "VIEWER"] as const;
 export const userStatusEnum = ["INVITED", "ACTIVE", "SUSPENDED", "DEACTIVATED"] as const;
 
-export const users = sqliteTable("users", {
+export const users = pgTable("users", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   name: text("name").notNull(),
@@ -37,22 +37,22 @@ export const users = sqliteTable("users", {
   orgEmailUq: uniqueIndex("users_org_email_uq").on(t.organizationId, t.email)
 }));
 
-export const permissions = sqliteTable("permissions", {
+export const permissions = pgTable("permissions", {
   id: id(),
   key: text("key").notNull().unique(),
   label: text("label").notNull()
 });
 
-export const userPermissions = sqliteTable("user_permissions", {
+export const userPermissions = pgTable("user_permissions", {
   id: id(),
   userId: text("user_id").notNull().references(() => users.id),
   permissionKey: text("permission_key").notNull(),
-  allow: integer("allow", { mode: "boolean" }).notNull().default(true)
+  allow: boolean("allow").notNull().default(true)
 }, (t) => ({
   uq: uniqueIndex("user_perm_uq").on(t.userId, t.permissionKey)
 }));
 
-export const invitations = sqliteTable("invitations", {
+export const invitations = pgTable("invitations", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   email: text("email").notNull(),
@@ -63,7 +63,7 @@ export const invitations = sqliteTable("invitations", {
   ...timestamps
 });
 
-export const sessions = sqliteTable("sessions", {
+export const sessions = pgTable("sessions", {
   id: id(),
   userId: text("user_id").notNull().references(() => users.id),
   expiresAt: text("expires_at").notNull(),
@@ -72,19 +72,19 @@ export const sessions = sqliteTable("sessions", {
 
 /* ---------------- ACADEMIC SESSION ---------------- */
 
-export const academicSessions = sqliteTable("academic_sessions", {
+export const academicSessions = pgTable("academic_sessions", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   name: text("name").notNull(),
   startDate: text("start_date").notNull(),
   endDate: text("end_date").notNull(),
-  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  active: boolean("active").notNull().default(true),
   ...timestamps
 });
 
 /* ---------------- COURSES / BATCHES / SUBJECTS ---------------- */
 
-export const courses = sqliteTable("courses", {
+export const courses = pgTable("courses", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   name: text("name").notNull(),
@@ -93,7 +93,7 @@ export const courses = sqliteTable("courses", {
   ...timestamps
 }, (t) => ({ orgCodeUq: uniqueIndex("courses_org_code_uq").on(t.organizationId, t.code) }));
 
-export const batches = sqliteTable("batches", {
+export const batches = pgTable("batches", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   courseId: text("course_id").notNull().references(() => courses.id),
@@ -107,7 +107,7 @@ export const batches = sqliteTable("batches", {
   ...timestamps
 }, (t) => ({ orgCodeUq: uniqueIndex("batches_org_code_uq").on(t.organizationId, t.code) }));
 
-export const subjects = sqliteTable("subjects", {
+export const subjects = pgTable("subjects", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   name: text("name").notNull(),
@@ -115,7 +115,7 @@ export const subjects = sqliteTable("subjects", {
   ...timestamps
 }, (t) => ({ orgCodeUq: uniqueIndex("subjects_org_code_uq").on(t.organizationId, t.code) }));
 
-export const batchSubjectRequirements = sqliteTable("batch_subject_requirements", {
+export const batchSubjectRequirements = pgTable("batch_subject_requirements", {
   id: id(),
   batchId: text("batch_id").notNull().references(() => batches.id),
   subjectId: text("subject_id").notNull().references(() => subjects.id),
@@ -124,18 +124,18 @@ export const batchSubjectRequirements = sqliteTable("batch_subject_requirements"
   ...timestamps
 }, (t) => ({ uq: uniqueIndex("bsr_uq").on(t.batchId, t.subjectId) }));
 
-export const batchAvailability = sqliteTable("batch_availability", {
+export const batchAvailability = pgTable("batch_availability", {
   id: id(),
   batchId: text("batch_id").notNull().references(() => batches.id),
   dayOfWeek: integer("day_of_week").notNull(), // 0=Sun..6=Sat
-  available: integer("available", { mode: "boolean" }).notNull().default(true),
+  available: boolean("available").notNull().default(true),
   startTime: text("start_time"),
   endTime: text("end_time")
 }, (t) => ({ uq: uniqueIndex("batch_avail_uq").on(t.batchId, t.dayOfWeek) }));
 
 /* ---------------- FACULTY ---------------- */
 
-export const faculty = sqliteTable("faculty", {
+export const faculty = pgTable("faculty", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   name: text("name").notNull(),
@@ -148,28 +148,28 @@ export const faculty = sqliteTable("faculty", {
   ...timestamps
 }, (t) => ({ orgEmpUq: uniqueIndex("faculty_org_emp_uq").on(t.organizationId, t.employeeId) }));
 
-export const facultySubjects = sqliteTable("faculty_subjects", {
+export const facultySubjects = pgTable("faculty_subjects", {
   id: id(),
   facultyId: text("faculty_id").notNull().references(() => faculty.id),
   subjectId: text("subject_id").notNull().references(() => subjects.id)
 }, (t) => ({ uq: uniqueIndex("fs_uq").on(t.facultyId, t.subjectId) }));
 
-export const facultyBatches = sqliteTable("faculty_batches", {
+export const facultyBatches = pgTable("faculty_batches", {
   id: id(),
   facultyId: text("faculty_id").notNull().references(() => faculty.id),
   batchId: text("batch_id").notNull().references(() => batches.id)
 }, (t) => ({ uq: uniqueIndex("fb_uq").on(t.facultyId, t.batchId) }));
 
-export const facultyAvailability = sqliteTable("faculty_availability", {
+export const facultyAvailability = pgTable("faculty_availability", {
   id: id(),
   facultyId: text("faculty_id").notNull().references(() => faculty.id),
   dayOfWeek: integer("day_of_week").notNull(),
-  available: integer("available", { mode: "boolean" }).notNull().default(true),
+  available: boolean("available").notNull().default(true),
   startTime: text("start_time"),
   endTime: text("end_time")
 }, (t) => ({ uq: uniqueIndex("faculty_avail_uq").on(t.facultyId, t.dayOfWeek) }));
 
-export const facultyBlockedSlots = sqliteTable("faculty_blocked_slots", {
+export const facultyBlockedSlots = pgTable("faculty_blocked_slots", {
   id: id(),
   facultyId: text("faculty_id").notNull().references(() => faculty.id),
   date: text("date"), // specific date block, nullable = recurring
@@ -181,7 +181,7 @@ export const facultyBlockedSlots = sqliteTable("faculty_blocked_slots", {
 
 /* ---------------- ROOMS ---------------- */
 
-export const rooms = sqliteTable("rooms", {
+export const rooms = pgTable("rooms", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   name: text("name").notNull(),
@@ -194,16 +194,16 @@ export const rooms = sqliteTable("rooms", {
   ...timestamps
 }, (t) => ({ orgCodeUq: uniqueIndex("rooms_org_code_uq").on(t.organizationId, t.code) }));
 
-export const roomAvailability = sqliteTable("room_availability", {
+export const roomAvailability = pgTable("room_availability", {
   id: id(),
   roomId: text("room_id").notNull().references(() => rooms.id),
   dayOfWeek: integer("day_of_week").notNull(),
-  available: integer("available", { mode: "boolean" }).notNull().default(true),
+  available: boolean("available").notNull().default(true),
   startTime: text("start_time"),
   endTime: text("end_time")
 }, (t) => ({ uq: uniqueIndex("room_avail_uq").on(t.roomId, t.dayOfWeek) }));
 
-export const roomBlockedSlots = sqliteTable("room_blocked_slots", {
+export const roomBlockedSlots = pgTable("room_blocked_slots", {
   id: id(),
   roomId: text("room_id").notNull().references(() => rooms.id),
   date: text("date"),
@@ -215,7 +215,7 @@ export const roomBlockedSlots = sqliteTable("room_blocked_slots", {
 
 /* ---------------- TIME SLOTS / HOLIDAYS ---------------- */
 
-export const timeSlots = sqliteTable("time_slots", {
+export const timeSlots = pgTable("time_slots", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   startTime: text("start_time").notNull(),
@@ -225,21 +225,21 @@ export const timeSlots = sqliteTable("time_slots", {
   ...timestamps
 });
 
-export const holidays = sqliteTable("holidays", {
+export const holidays = pgTable("holidays", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   date: text("date").notNull(),
   name: text("name").notNull()
 }, (t) => ({ uq: uniqueIndex("holiday_uq").on(t.organizationId, t.date) }));
 
-export const workingDays = sqliteTable("working_days", {
+export const workingDays = pgTable("working_days", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   dayOfWeek: integer("day_of_week").notNull(),
-  isWorking: integer("is_working", { mode: "boolean" }).notNull().default(true)
+  isWorking: boolean("is_working").notNull().default(true)
 }, (t) => ({ uq: uniqueIndex("working_day_uq").on(t.organizationId, t.dayOfWeek) }));
 
-export const batchTimeSlots = sqliteTable("batch_time_slots", {
+export const batchTimeSlots = pgTable("batch_time_slots", {
   id: id(),
   batchId: text("batch_id").notNull().references(() => batches.id),
   timeSlotId: text("time_slot_id").notNull().references(() => timeSlots.id)
@@ -249,7 +249,7 @@ export const batchTimeSlots = sqliteTable("batch_time_slots", {
 
 export const timetableStatusEnum = ["DRAFT", "REVIEW", "PUBLISHED", "ARCHIVED"] as const;
 
-export const timetables = sqliteTable("timetables", {
+export const timetables = pgTable("timetables", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   academicSessionId: text("academic_session_id").notNull().references(() => academicSessions.id),
@@ -263,7 +263,7 @@ export const timetables = sqliteTable("timetables", {
   ...timestamps
 });
 
-export const timetableEntries = sqliteTable("timetable_entries", {
+export const timetableEntries = pgTable("timetable_entries", {
   id: id(),
   timetableId: text("timetable_id").notNull().references(() => timetables.id),
   batchId: text("batch_id").notNull().references(() => batches.id),
@@ -283,7 +283,7 @@ export const timetableEntries = sqliteTable("timetable_entries", {
   roomSlotUq: uniqueIndex("tte_room_slot_uq").on(t.timetableId, t.roomId, t.date, t.startTime)
 }));
 
-export const timetableChangeLog = sqliteTable("timetable_change_log", {
+export const timetableChangeLog = pgTable("timetable_change_log", {
   id: id(),
   timetableId: text("timetable_id").notNull().references(() => timetables.id),
   userId: text("user_id").notNull().references(() => users.id),
@@ -296,7 +296,7 @@ export const timetableChangeLog = sqliteTable("timetable_change_log", {
 
 /* ---------------- AUDIT / NOTIFICATIONS / SETTINGS ---------------- */
 
-export const auditLogs = sqliteTable("audit_logs", {
+export const auditLogs = pgTable("audit_logs", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   userId: text("user_id").references(() => users.id),
@@ -307,16 +307,16 @@ export const auditLogs = sqliteTable("audit_logs", {
   ...timestamps
 }, (t) => ({ orgIdx: index("audit_org_idx").on(t.organizationId) }));
 
-export const notifications = sqliteTable("notifications", {
+export const notifications = pgTable("notifications", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id),
   userId: text("user_id").notNull().references(() => users.id),
   message: text("message").notNull(),
-  read: integer("read", { mode: "boolean" }).notNull().default(false),
+  read: boolean("read").notNull().default(false),
   ...timestamps
 });
 
-export const instituteSettings = sqliteTable("institute_settings", {
+export const instituteSettings = pgTable("institute_settings", {
   id: id(),
   organizationId: text("organization_id").notNull().references(() => organizations.id).unique(),
   instituteName: text("institute_name").notNull(),
