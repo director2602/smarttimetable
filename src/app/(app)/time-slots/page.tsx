@@ -2,7 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
 import { timeSlots } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { createTimeSlot } from "./actions";
+import TimeSlotCreateForm from "./time-slot-create-form";
 import TimeSlotRow from "./time-slot-row";
 
 export default async function TimeSlotsPage() {
@@ -13,31 +13,30 @@ export default async function TimeSlotsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Time Slots</h1>
-      <div className="card p-5">
-        <form action={createTimeSlot} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <div><label className="label">Start</label><input name="startTime" type="time" required className="input" /></div>
-          <div><label className="label">End</label><input name="endTime" type="time" required className="input" /></div>
-          <div>
-            <label className="label">Type</label>
-            <select name="type" className="input" defaultValue="CLASS">
-              <option value="CLASS">CLASS</option>
-              <option value="BREAK">BREAK</option>
-              <option value="DOUBTS">DOUBTS</option>
-              <option value="DAY">DAY</option>
-              <option value="DATE">DATE</option>
-            </select>
-          </div>
-          <input type="hidden" name="sortOrder" value={nextSortOrder} />
-          <button className="btn-primary">Add Slot</button>
-        </form>
+      <div>
+        <h1 className="text-xl font-semibold">Time Slots</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Leave "Day" as "All days" for a slot that applies every working day (the usual case). Set a specific
+          day to give that day its own time structure — e.g. a shorter Saturday, or a different Monday pattern —
+          without changing the slots every other day uses.
+        </p>
       </div>
+      <TimeSlotCreateForm nextSortOrder={nextSortOrder} />
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500"><tr><th className="px-4 py-2">Start</th><th className="px-4 py-2">End</th><th className="px-4 py-2">Type</th><th className="px-4 py-2"></th></tr></thead>
+          <thead className="bg-slate-50 text-left text-slate-500"><tr><th className="px-4 py-2">Start</th><th className="px-4 py-2">End</th><th className="px-4 py-2">Type</th><th className="px-4 py-2">Day</th><th className="px-4 py-2"></th></tr></thead>
           <tbody>
-            {rows.map((s) => <TimeSlotRow key={s.id} slot={{ id: s.id, startTime: s.startTime, endTime: s.endTime, type: s.type as "CLASS" | "BREAK" | "DOUBTS" | "DAY" | "DATE" }} />)}
-            {rows.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">No time slots yet.</td></tr>}
+            {rows.map((s) => (
+              <TimeSlotRow
+                key={s.id}
+                slot={{
+                  id: s.id, startTime: s.startTime, endTime: s.endTime,
+                  type: s.type as "CLASS" | "BREAK" | "DOUBTS" | "DAY" | "DATE",
+                  dayOfWeek: s.dayOfWeek, sortOrder: s.sortOrder
+                }}
+              />
+            ))}
+            {rows.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No time slots yet.</td></tr>}
           </tbody>
         </table>
       </div>

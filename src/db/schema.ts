@@ -221,6 +221,7 @@ export const timeSlots = pgTable("time_slots", {
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
   type: text("type", { enum: ["CLASS", "BREAK", "DOUBTS", "DAY", "DATE"] }).notNull().default("CLASS"),
+  dayOfWeek: integer("day_of_week"), // null = applies every working day; 0-6 = applies only that day (0=Sun..6=Sat)
   sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps
 });

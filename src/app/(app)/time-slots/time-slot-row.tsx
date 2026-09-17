@@ -4,25 +4,41 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { editTimeSlot, deleteTimeSlot } from "./actions";
 
+const DAYS = [
+  { v: "", label: "All days" },
+  { v: "1", label: "Monday" },
+  { v: "2", label: "Tuesday" },
+  { v: "3", label: "Wednesday" },
+  { v: "4", label: "Thursday" },
+  { v: "5", label: "Friday" },
+  { v: "6", label: "Saturday" },
+  { v: "0", label: "Sunday" }
+];
+
+const DAY_LABEL: Record<number, string> = { 0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat" };
+
 export default function TimeSlotRow({
   slot
 }: {
-  slot: { id: string; startTime: string; endTime: string; type: "CLASS" | "BREAK" | "DOUBTS" | "DAY" | "DATE" };
+  slot: { id: string; startTime: string; endTime: string; type: "CLASS" | "BREAK" | "DOUBTS" | "DAY" | "DATE"; dayOfWeek: number | null; sortOrder: number };
 }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   if (editing) {
     return (
       <tr className="border-t border-slate-100 bg-slate-50/50">
-        <td colSpan={4} className="px-4 py-2">
+        <td colSpan={5} className="px-4 py-2">
           <form
             className="flex flex-wrap items-end gap-2"
             action={(formData) => {
               formData.set("id", slot.id);
+              setError(null);
               startTransition(async () => {
-                await editTimeSlot(formData);
+                const res = await editTimeSlot(formData);
+                if (res?.error) { setError(res.error); return; }
                 setEditing(false);
                 router.refresh();
               });
@@ -40,9 +56,16 @@ export default function TimeSlotRow({
                 <option value="DATE">DATE</option>
               </select>
             </div>
-            <input type="hidden" name="sortOrder" value={0} />
+            <div>
+              <label className="label">Day</label>
+              <select name="dayOfWeek" defaultValue={slot.dayOfWeek === null ? "" : String(slot.dayOfWeek)} className="input">
+                {DAYS.map((d) => <option key={d.v} value={d.v}>{d.label}</option>)}
+              </select>
+            </div>
+            <input type="hidden" name="sortOrder" value={slot.sortOrder} />
             <button type="submit" className="btn-primary py-1 px-3 text-xs" disabled={pending}>{pending ? "Saving..." : "Save"}</button>
             <button type="button" className="btn-secondary py-1 px-3 text-xs" onClick={() => setEditing(false)}>Cancel</button>
+            {error && <p className="text-xs text-red-600 w-full">{error}</p>}
           </form>
         </td>
       </tr>
@@ -54,6 +77,7 @@ export default function TimeSlotRow({
       <td className="px-4 py-2">{slot.startTime}</td>
       <td className="px-4 py-2">{slot.endTime}</td>
       <td className="px-4 py-2">{slot.type === "BREAK" ? <span className="text-amber-600">BREAK</span> : slot.type === "CLASS" ? "CLASS" : <span className="text-brand-500">{slot.type}</span>}</td>
+      <td className="px-4 py-2">{slot.dayOfWeek === null ? <span className="text-slate-400">All days</span> : DAY_LABEL[slot.dayOfWeek]}</td>
       <td className="px-4 py-2 text-right space-x-3">
         <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(true)}>Edit</button>
         <button
@@ -61,11 +85,17 @@ export default function TimeSlotRow({
           disabled={pending}
           onClick={() => {
             if (!confirm(`Delete the ${slot.startTime}-${slot.endTime} slot?`)) return;
-            startTransition(async () => { await deleteTimeSlot(slot.id); router.refresh(); });
+            setError(null);
+            startTransition(async () => {
+              const res = await deleteTimeSlot(slot.id);
+              if (res?.error) { setError(res.error); return; }
+              router.refresh();
+            });
           }}
         >
           Delete
         </button>
+        {error && <div className="text-xs text-red-600 mt-1">{error}</div>}
       </td>
     </tr>
   );
