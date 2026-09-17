@@ -1,10 +1,44 @@
 "use server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/db";
-import { batches, auditLogs, batchAvailability, batchSubjectRequirements, facultyBatches, timetableEntries } from "@/db/schema";
+import { batches, auditLogs, batchAvailability, batchSubjectRequirements, subjects, facultyBatches, timetableEntries } from "@/db/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+
+export async function setBatchRequirement(formData: FormData) {
+  const user = await requirePermission("BATCH_EDIT");
+  const batchId = formData.get("batchId") as string;
+  const subjectId = formData.get("subjectId") as string;
+  const classesPerWeek = Number(formData.get("classesPerWeek"));
+
+  const batch = await db.query.batches.findFirst({ where: eq(batches.id, batchId) });
+  if (!batch || batch.organizationId !== user.organizationId) throw new Error("Batch not found");
+  if (!subjectId) throw new Error("Select a subject");
+  if (!classesPerWeek || classesPerWeek < 1) throw new Error("Classes per week must be at least 1");
+
+  const existing = await db.query.batchSubjectRequirements.findFirst({
+    where: and(eq(batchSubjectRequirements.batchId, batchId), eq(batchSubjectRequirements.subjectId, subjectId))
+  });
+  if (existing) {
+    await db.update(batchSubjectRequirements).set({ classesPerWeek }).where(eq(batchSubjectRequirements.id, existing.id));
+  } else {
+    await db.insert(batchSubjectRequirements).values({ batchId, subjectId, classesPerWeek, minGapDays: 0 });
+  }
+
+  await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "BATCH_REQUIREMENT_SET", entityType: "batch", entityId: batchId });
+  revalidatePath("/batches");
+}
+
+export async function removeBatchRequirement(batchId: string, subjectId: string) {
+  const user = await requirePermission("BATCH_EDIT");
+  const batch = await db.query.batches.findFirst({ where: eq(batches.id, batchId) });
+  if (!batch || batch.organizationId !== user.organizationId) throw new Error("Batch not found");
+
+  await db.delete(batchSubjectRequirements).where(and(eq(batchSubjectRequirements.batchId, batchId), eq(batchSubjectRequirements.subjectId, subjectId)));
+  await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "BATCH_REQUIREMENT_REMOVED", entityType: "batch", entityId: batchId });
+  revalidatePath("/batches");
+}
 
 const editSchema = z.object({
   id: z.string().min(1),

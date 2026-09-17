@@ -159,11 +159,15 @@ export function generateAttempt(input: SchedulerInput, seed = 1): SchedulerResul
 
   // Quality score: fulfilment (0-70) + soft-constraint health (0-30, approximated via
   // penalties already baked into placement choice — here we estimate spread & gaps)
-  const fulfilmentScore = requiredTotal > 0 ? (scheduledTotal / requiredTotal) * 70 : 70;
+  const fulfilmentScore = requiredTotal > 0 ? (scheduledTotal / requiredTotal) * 70 : 0;
   const spreadPenalty = estimateSpreadPenalty(entries, input);
-  const qualityScore = Math.max(0, Math.min(100, Math.round(fulfilmentScore + (30 - spreadPenalty))));
+  const qualityScore = requiredTotal > 0
+    ? Math.max(0, Math.min(100, Math.round(fulfilmentScore + (30 - spreadPenalty))))
+    : 0;
 
-  if (unscheduled.length > 0) {
+  if (requiredTotal === 0) {
+    warnings.push("No weekly subject requirements are configured for any batch — there is nothing for the scheduler to place. Add requirements under Batches before generating.");
+  } else if (unscheduled.length > 0) {
     warnings.push(`${unscheduled.length} batch/subject requirement(s) could not be fully scheduled.`);
   }
 

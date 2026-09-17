@@ -63,7 +63,8 @@ export default function GenerateClient({
       requiredTotal: a.requiredTotal,
       scheduledTotal: a.scheduledTotal,
       unscheduled: a.unscheduled,
-      entries: a.entries
+      entries: a.entries,
+      warnings: a.warnings
     });
     setSaving(false);
     router.push(`/timetable/${res.timetableId}`);
@@ -132,6 +133,17 @@ export default function GenerateClient({
 
           {active && (
             <div className="card p-5 space-y-3">
+              {active.requiredTotal === 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                  No weekly subject requirements are configured for any batch, so there is nothing to schedule.
+                  Go to <strong>Batches</strong> and add subject requirements (e.g. Physics × 5/week) before generating.
+                </div>
+              )}
+              {active.warnings.length > 0 && active.requiredTotal > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700 space-y-1">
+                  {active.warnings.map((w, i) => <div key={i}>{w}</div>)}
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div><div className="text-slate-500">Classes required</div><div className="text-lg font-semibold">{active.requiredTotal}</div></div>
                 <div><div className="text-slate-500">Classes scheduled</div><div className="text-lg font-semibold">{active.scheduledTotal}</div></div>

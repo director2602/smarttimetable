@@ -56,6 +56,7 @@ export async function saveGeneratedTimetableAction(input: {
     batchId: string; subjectId: string; facultyId: string; roomId: string;
     date: string; dayOfWeek: number; startTime: string; endTime: string;
   }[];
+  warnings?: string[];
 }) {
   const user = await requirePermission("TIMETABLE_CREATE");
 
@@ -68,7 +69,8 @@ export async function saveGeneratedTimetableAction(input: {
     generationMeta: JSON.stringify({
       requiredTotal: input.requiredTotal,
       scheduledTotal: input.scheduledTotal,
-      unscheduled: input.unscheduled
+      unscheduled: input.unscheduled,
+      warnings: input.warnings || []
     })
   }).returning();
 

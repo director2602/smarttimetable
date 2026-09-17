@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { resolvePermission, type Role } from "@/lib/permissions";
 import BatchEditForm from "./batch-edit-form";
 import BatchRosterForm from "./batch-roster-form";
+import BatchRequirementsForm from "./batch-requirements-form";
 
 export default async function BatchesPage() {
   const user = await getCurrentUser();
@@ -21,6 +22,7 @@ export default async function BatchesPage() {
   const subjById = new Map(subjectRows.map((s) => [s.id, s]));
   const canEdit = resolvePermission(user.role as Role, overrides, "BATCH_EDIT");
   const canDelete = resolvePermission(user.role as Role, overrides, "BATCH_DELETE");
+  const allSubjects = subjectRows.map((s) => ({ id: s.id, name: s.name }));
 
   return (
     <div className="space-y-6">
@@ -30,7 +32,9 @@ export default async function BatchesPage() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {rows.map((b) => {
-          const reqs = reqRows.filter((r) => r.batchId === b.id);
+          const reqs = reqRows.filter((r) => r.batchId === b.id).map((r) => ({
+            subjectId: r.subjectId, subjectName: subjById.get(r.subjectId)?.name || "Unknown", classesPerWeek: r.classesPerWeek
+          }));
           return (
             <div key={b.id} className="card p-4">
               <div className="flex justify-between items-start">
@@ -40,13 +44,7 @@ export default async function BatchesPage() {
                 </div>
                 <div className="text-xs text-slate-500">{b.studentCount} students</div>
               </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {reqs.map((r) => (
-                  <span key={r.id} className="text-xs bg-slate-100 rounded px-2 py-0.5">
-                    {subjById.get(r.subjectId)?.name} × {r.classesPerWeek}/wk
-                  </span>
-                ))}
-              </div>
+              <BatchRequirementsForm batchId={b.id} requirements={reqs} allSubjects={allSubjects} canEdit={canEdit} />
               <div className="mt-2">
                 <BatchEditForm batch={b} canEdit={canEdit} canDelete={canDelete} />
               </div>

@@ -299,7 +299,7 @@ export async function runBulkImport(orgId: string, userId: string, buffer: Buffe
     const [tt] = await db.insert(timetables).values({
       organizationId: orgId, academicSessionId: activeSession.id, weekStartDate, status: "DRAFT",
       qualityScore: best.qualityScore,
-      generationMeta: JSON.stringify({ requiredTotal: best.requiredTotal, scheduledTotal: best.scheduledTotal, unscheduled: best.unscheduled })
+      generationMeta: JSON.stringify({ requiredTotal: best.requiredTotal, scheduledTotal: best.scheduledTotal, unscheduled: best.unscheduled, warnings: best.warnings })
     }).returning();
     if (best.entries.length > 0) {
       await db.insert(timetableEntries).values(best.entries.map((e) => ({ timetableId: tt.id, classType: "REGULAR", ...e })));

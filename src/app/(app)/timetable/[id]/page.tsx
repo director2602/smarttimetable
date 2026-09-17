@@ -51,6 +51,17 @@ export default async function TimetableDetailPage({ params }: { params: { id: st
         </div>
       </div>
 
+      {meta?.requiredTotal === 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+          This timetable has no scheduled classes because no batch had any weekly subject requirements configured
+          at generation time. Go to <strong>Batches</strong>, add requirements (e.g. Physics × 5/week), then generate again.
+        </div>
+      )}
+      {meta?.warnings?.length > 0 && meta?.requiredTotal > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700 space-y-1">
+          {meta.warnings.map((w: string, i: number) => <div key={i}>{w}</div>)}
+        </div>
+      )}
       {meta?.unscheduled?.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
           {meta.unscheduled.length} requirement(s) could not be fully scheduled. See the generation summary for details.
