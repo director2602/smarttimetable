@@ -16,9 +16,9 @@ export default async function TimeSlotsPage() {
       <div>
         <h1 className="text-xl font-semibold">Time Slots</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Leave "Day" as "All days" for a slot that applies every working day (the usual case). Set a specific
-          day to give that day its own time structure — e.g. a shorter Saturday, or a different Monday pattern —
-          without changing the slots every other day uses.
+          Leave "Days" unchecked for a slot that applies every working day (the usual case). Check one or more
+          specific days to give those days their own time structure — e.g. Mon/Wed/Fri only, or a shorter
+          Saturday — without changing the slots any other day uses.
         </p>
       </div>
       <TimeSlotCreateForm nextSortOrder={nextSortOrder} />
@@ -32,7 +32,7 @@ export default async function TimeSlotsPage() {
                 slot={{
                   id: s.id, startTime: s.startTime, endTime: s.endTime,
                   type: s.type as "CLASS" | "BREAK" | "DOUBTS" | "DAY" | "DATE",
-                  dayOfWeek: s.dayOfWeek, sortOrder: s.sortOrder
+                  daysOfWeek: s.daysOfWeek, sortOrder: s.sortOrder
                 }}
               />
             ))}

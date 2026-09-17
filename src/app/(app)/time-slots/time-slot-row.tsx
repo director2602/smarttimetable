@@ -5,27 +5,29 @@ import { useRouter } from "next/navigation";
 import { editTimeSlot, deleteTimeSlot } from "./actions";
 
 const DAYS = [
-  { v: "", label: "All days" },
-  { v: "1", label: "Monday" },
-  { v: "2", label: "Tuesday" },
-  { v: "3", label: "Wednesday" },
-  { v: "4", label: "Thursday" },
-  { v: "5", label: "Friday" },
-  { v: "6", label: "Saturday" },
-  { v: "0", label: "Sunday" }
+  { v: 1, label: "Mon" }, { v: 2, label: "Tue" }, { v: 3, label: "Wed" }, { v: 4, label: "Thu" },
+  { v: 5, label: "Fri" }, { v: 6, label: "Sat" }, { v: 0, label: "Sun" }
 ];
-
 const DAY_LABEL: Record<number, string> = { 0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat" };
 
 export default function TimeSlotRow({
   slot
 }: {
-  slot: { id: string; startTime: string; endTime: string; type: "CLASS" | "BREAK" | "DOUBTS" | "DAY" | "DATE"; dayOfWeek: number | null; sortOrder: number };
+  slot: { id: string; startTime: string; endTime: string; type: "CLASS" | "BREAK" | "DOUBTS" | "DAY" | "DATE"; daysOfWeek: number[] | null; sortOrder: number };
 }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set(slot.daysOfWeek || []));
   const router = useRouter();
+
+  function toggleDay(d: number) {
+    setSelectedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d); else next.add(d);
+      return next;
+    });
+  }
 
   if (editing) {
     return (
@@ -57,10 +59,22 @@ export default function TimeSlotRow({
               </select>
             </div>
             <div>
-              <label className="label">Day</label>
-              <select name="dayOfWeek" defaultValue={slot.dayOfWeek === null ? "" : String(slot.dayOfWeek)} className="input">
-                {DAYS.map((d) => <option key={d.v} value={d.v}>{d.label}</option>)}
-              </select>
+              <label className="label">Days</label>
+              <div className="flex flex-wrap gap-1">
+                {DAYS.map((d) => (
+                  <button
+                    key={d.v}
+                    type="button"
+                    onClick={() => toggleDay(d.v)}
+                    className={`text-xs px-1.5 py-0.5 rounded border ${
+                      selectedDays.has(d.v) ? "bg-brand-100 border-brand-400 text-brand-700" : "bg-white border-slate-200 text-slate-500"
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+                {Array.from(selectedDays).map((d) => <input key={d} type="hidden" name="daysOfWeek" value={d} />)}
+              </div>
             </div>
             <input type="hidden" name="sortOrder" value={slot.sortOrder} />
             <button type="submit" className="btn-primary py-1 px-3 text-xs" disabled={pending}>{pending ? "Saving..." : "Save"}</button>
@@ -77,7 +91,11 @@ export default function TimeSlotRow({
       <td className="px-4 py-2">{slot.startTime}</td>
       <td className="px-4 py-2">{slot.endTime}</td>
       <td className="px-4 py-2">{slot.type === "BREAK" ? <span className="text-amber-600">BREAK</span> : slot.type === "CLASS" ? "CLASS" : <span className="text-brand-500">{slot.type}</span>}</td>
-      <td className="px-4 py-2">{slot.dayOfWeek === null ? <span className="text-slate-400">All days</span> : DAY_LABEL[slot.dayOfWeek]}</td>
+      <td className="px-4 py-2">
+        {!slot.daysOfWeek || slot.daysOfWeek.length === 0
+          ? <span className="text-slate-400">All days</span>
+          : slot.daysOfWeek.map((d) => DAY_LABEL[d]).join(", ")}
+      </td>
       <td className="px-4 py-2 text-right space-x-3">
         <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(true)}>Edit</button>
         <button

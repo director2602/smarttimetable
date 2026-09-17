@@ -1,0 +1,1 @@
+ALTER TABLE "time_slots" ADD COLUMN "days_of_week" integer[];

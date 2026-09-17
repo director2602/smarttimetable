@@ -10,14 +10,13 @@ const slotSchema = z.object({
   startTime: z.string().min(1),
   endTime: z.string().min(1),
   type: z.enum(["CLASS", "BREAK", "DOUBTS", "DAY", "DATE"]),
-  dayOfWeek: z.string().optional().or(z.literal("")),
   sortOrder: z.coerce.number().int()
 });
 
-function parseDayOfWeek(raw: string | undefined | null): number | null {
-  if (raw === undefined || raw === null || raw === "") return null;
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 && n <= 6 ? n : null;
+function parseDaysOfWeek(raw: string[]): number[] | null {
+  const days = raw.map((r) => Number(r)).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+  const unique = Array.from(new Set(days));
+  return unique.length > 0 ? unique : null;
 }
 
 export async function createTimeSlot(formData: FormData) {
@@ -26,7 +25,6 @@ export async function createTimeSlot(formData: FormData) {
     startTime: formData.get("startTime"),
     endTime: formData.get("endTime"),
     type: formData.get("type"),
-    dayOfWeek: formData.get("dayOfWeek"),
     sortOrder: formData.get("sortOrder")
   });
   if (!parsed.success) return { error: parsed.error.errors[0]?.message || "Invalid input" };
@@ -36,7 +34,7 @@ export async function createTimeSlot(formData: FormData) {
     startTime: parsed.data.startTime,
     endTime: parsed.data.endTime,
     type: parsed.data.type,
-    dayOfWeek: parseDayOfWeek(parsed.data.dayOfWeek),
+    daysOfWeek: parseDaysOfWeek(formData.getAll("daysOfWeek") as string[]),
     sortOrder: parsed.data.sortOrder
   });
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "TIME_SLOT_CREATED" });
@@ -51,7 +49,6 @@ export async function editTimeSlot(formData: FormData) {
     startTime: formData.get("startTime"),
     endTime: formData.get("endTime"),
     type: formData.get("type"),
-    dayOfWeek: formData.get("dayOfWeek"),
     sortOrder: formData.get("sortOrder")
   });
   if (!parsed.success) return { error: parsed.error.errors[0]?.message || "Invalid input" };
@@ -63,7 +60,7 @@ export async function editTimeSlot(formData: FormData) {
     startTime: parsed.data.startTime,
     endTime: parsed.data.endTime,
     type: parsed.data.type,
-    dayOfWeek: parseDayOfWeek(parsed.data.dayOfWeek),
+    daysOfWeek: parseDaysOfWeek(formData.getAll("daysOfWeek") as string[]),
     sortOrder: parsed.data.sortOrder
   }).where(and(eq(timeSlots.id, id), eq(timeSlots.organizationId, user.organizationId)));
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "TIME_SLOT_EDITED", entityId: id });

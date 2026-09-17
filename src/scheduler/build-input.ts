@@ -51,7 +51,7 @@ export async function buildSchedulerInput(params: {
     if (!workingDaySet.has(dayOfWeek)) continue;
     if (holidayDates.has(date)) continue;
     const slotsForThisDay = allSlots
-      .filter((s) => s.dayOfWeek === null || s.dayOfWeek === undefined || s.dayOfWeek === dayOfWeek)
+      .filter((s) => !s.daysOfWeek || s.daysOfWeek.length === 0 || s.daysOfWeek.includes(dayOfWeek))
       .sort((a, b) => a.sortOrder - b.sortOrder);
     for (const s of slotsForThisDay) {
       dateSlots.push({ date, dayOfWeek, slot: { id: s.id, startTime: s.startTime, endTime: s.endTime, type: "CLASS", sortOrder: s.sortOrder } });
