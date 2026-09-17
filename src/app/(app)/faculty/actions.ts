@@ -6,10 +6,11 @@ import { z } from "zod";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
+import { nanoid } from "nanoid";
 
 const createSchema = z.object({
   name: z.string().min(1),
-  employeeId: z.string().min(1),
+  employeeId: z.string().optional().or(z.literal("")),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   maxClassesPerDay: z.coerce.number().int().min(1),
@@ -28,15 +29,25 @@ export async function createFaculty(formData: FormData) {
   });
   if (!parsed.success) return { error: parsed.error.errors[0]?.message || "Invalid input" };
 
-  const existing = await db.query.faculty.findFirst({
-    where: and(eq(faculty.organizationId, user.organizationId), eq(faculty.employeeId, parsed.data.employeeId))
-  });
-  if (existing) return { error: `Employee ID "${parsed.data.employeeId}" is already in use by ${existing.name}` };
+  let employeeId = parsed.data.employeeId?.trim();
+  if (!employeeId) {
+    // Auto-generate one so the field is never left empty in the database — bulk import
+    // and other lookups still key off it — while the admin isn't forced to type one.
+    do {
+      employeeId = `AUTO-${nanoid(6).toUpperCase()}`;
+      // eslint-disable-next-line no-await-in-loop
+    } while (await db.query.faculty.findFirst({ where: and(eq(faculty.organizationId, user.organizationId), eq(faculty.employeeId, employeeId)) }));
+  } else {
+    const existing = await db.query.faculty.findFirst({
+      where: and(eq(faculty.organizationId, user.organizationId), eq(faculty.employeeId, employeeId))
+    });
+    if (existing) return { error: `Employee ID "${employeeId}" is already in use by ${existing.name}` };
+  }
 
   const [row] = await db.insert(faculty).values({
     organizationId: user.organizationId,
     name: parsed.data.name,
-    employeeId: parsed.data.employeeId,
+    employeeId,
     email: parsed.data.email || null,
     phone: parsed.data.phone || null,
     maxClassesPerDay: parsed.data.maxClassesPerDay,
@@ -51,7 +62,42 @@ export async function createFaculty(formData: FormData) {
     });
   }
 
+  const subjectIds = formData.getAll("subjectIds") as string[];
+  if (subjectIds.length > 0) {
+    const validSubjects = await db.query.subjects.findMany({
+      where: and(eq(subjects.organizationId, user.organizationId), inArray(subjects.id, subjectIds))
+    });
+    if (validSubjects.length > 0) {
+      await db.insert(facultySubjects).values(validSubjects.map((s) => ({ facultyId: row.id, subjectId: s.id })));
+    }
+  }
+
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "FACULTY_CREATED", entityType: "faculty", entityId: row.id });
+  revalidatePath("/faculty");
+  return { success: true };
+}
+
+export async function updateFacultySubjects(facultyId: string, subjectIds: string[]) {
+  const user = await requirePermission("FACULTY_EDIT");
+  const facultyRow = await db.query.faculty.findFirst({ where: eq(faculty.id, facultyId) });
+  if (!facultyRow || facultyRow.organizationId !== user.organizationId) return { error: "Faculty not found" };
+
+  if (subjectIds.length > 0) {
+    const validSubjects = await db.query.subjects.findMany({
+      where: and(eq(subjects.organizationId, user.organizationId), inArray(subjects.id, subjectIds))
+    });
+    if (validSubjects.length !== subjectIds.length) return { error: "One or more subjects not found" };
+  }
+
+  await db.delete(facultySubjects).where(eq(facultySubjects.facultyId, facultyId));
+  if (subjectIds.length > 0) {
+    await db.insert(facultySubjects).values(subjectIds.map((subjectId) => ({ facultyId, subjectId })));
+  }
+
+  await db.insert(auditLogs).values({
+    organizationId: user.organizationId, userId: user.id, action: "FACULTY_SUBJECTS_UPDATED",
+    entityType: "faculty", entityId: facultyId, metadata: JSON.stringify({ subjectIds })
+  });
   revalidatePath("/faculty");
   return { success: true };
 }

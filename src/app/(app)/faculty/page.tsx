@@ -6,6 +6,7 @@ import { resolvePermission, type Role } from "@/lib/permissions";
 import FacultyRosterForm from "./faculty-roster-form";
 import FacultyEditForm from "./faculty-edit-form";
 import FacultyBatchAssignForm from "./faculty-batch-assign-form";
+import FacultySubjectAssignForm from "./faculty-subject-assign-form";
 import FacultyImportForm from "./faculty-import-form";
 import FacultyCreateForm from "./faculty-create-form";
 import { Fragment } from "react";
@@ -26,11 +27,12 @@ export default async function FacultyPage() {
   const canEdit = resolvePermission(user.role as Role, overrides, "FACULTY_EDIT");
   const canDelete = resolvePermission(user.role as Role, overrides, "FACULTY_DELETE");
   const allBatches = batchRows.map((b) => ({ id: b.id, name: b.name }));
+  const allSubjects = subjectRows.map((s) => ({ id: s.id, name: s.name }));
 
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Faculty</h1>
-      <FacultyCreateForm />
+      <FacultyCreateForm allSubjects={allSubjects} />
       <FacultyImportForm />
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
@@ -49,6 +51,16 @@ export default async function FacultyPage() {
                   <td className="px-4 py-2">{f.status}</td>
                   <td className="px-4 py-2 text-right">
                     <FacultyEditForm f={f} canEdit={canEdit} canDelete={canDelete} />
+                  </td>
+                </tr>
+                <tr className="bg-slate-50/50">
+                  <td colSpan={7} className="px-4 pb-2 pt-1">
+                    <FacultySubjectAssignForm
+                      facultyId={f.id}
+                      allSubjects={allSubjects}
+                      assignedSubjectIds={fsRows.filter((x) => x.facultyId === f.id).map((x) => x.subjectId)}
+                      canEdit={canEdit}
+                    />
                   </td>
                 </tr>
                 <tr className="bg-slate-50/50">
