@@ -239,6 +239,12 @@ export const workingDays = sqliteTable("working_days", {
   isWorking: integer("is_working", { mode: "boolean" }).notNull().default(true)
 }, (t) => ({ uq: uniqueIndex("working_day_uq").on(t.organizationId, t.dayOfWeek) }));
 
+export const batchTimeSlots = sqliteTable("batch_time_slots", {
+  id: id(),
+  batchId: text("batch_id").notNull().references(() => batches.id),
+  timeSlotId: text("time_slot_id").notNull().references(() => timeSlots.id)
+}, (t) => ({ uq: uniqueIndex("batch_time_slot_uq").on(t.batchId, t.timeSlotId) }));
+
 /* ---------------- TIMETABLE ---------------- */
 
 export const timetableStatusEnum = ["DRAFT", "REVIEW", "PUBLISHED", "ARCHIVED"] as const;

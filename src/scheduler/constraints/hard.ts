@@ -92,6 +92,9 @@ export function checkHardConstraints(params: {
   if (!withinAvailability(batch.availability, dayOfWeek, slot.startTime, slot.endTime)) {
     reasons.push("Batch not available at this day/time");
   }
+  if (batch.allowedSlotIds && batch.allowedSlotIds.size > 0 && !batch.allowedSlotIds.has(slot.id)) {
+    reasons.push("Batch is not configured to use this time slot");
+  }
 
   // 7. Holidays are filtered out before dateSlots are generated (not applicable here)
 

@@ -1,10 +1,27 @@
 "use server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/db";
-import { batches, auditLogs, batchAvailability, batchSubjectRequirements, subjects, facultyBatches, timetableEntries } from "@/db/schema";
+import { batches, auditLogs, batchAvailability, batchSubjectRequirements, batchTimeSlots, subjects, facultyBatches, timetableEntries } from "@/db/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+
+export async function updateBatchTimeSlots(batchId: string, timeSlotIds: string[]) {
+  const user = await requirePermission("BATCH_EDIT");
+  const batch = await db.query.batches.findFirst({ where: eq(batches.id, batchId) });
+  if (!batch || batch.organizationId !== user.organizationId) throw new Error("Batch not found");
+
+  await db.delete(batchTimeSlots).where(eq(batchTimeSlots.batchId, batchId));
+  if (timeSlotIds.length > 0) {
+    await db.insert(batchTimeSlots).values(timeSlotIds.map((timeSlotId) => ({ batchId, timeSlotId })));
+  }
+
+  await db.insert(auditLogs).values({
+    organizationId: user.organizationId, userId: user.id, action: "BATCH_TIME_SLOTS_UPDATED",
+    entityType: "batch", entityId: batchId, metadata: JSON.stringify({ timeSlotIds })
+  });
+  revalidatePath("/batches");
+}
 
 export async function setBatchRequirement(formData: FormData) {
   const user = await requirePermission("BATCH_EDIT");

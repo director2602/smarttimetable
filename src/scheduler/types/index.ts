@@ -38,6 +38,7 @@ export interface BatchDef {
   maxClassesPerDay: number;
   maxConsecutiveClasses: number;
   availability: Map<number, { available: boolean; startTime?: string; endTime?: string }>;
+  allowedSlotIds?: Set<string>; // if set and non-empty, batch may ONLY be scheduled in these time slots
 }
 
 export interface RequirementJob {

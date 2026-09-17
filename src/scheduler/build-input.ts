@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import {
-  batches, batchSubjectRequirements, batchAvailability, subjects,
+  batches, batchSubjectRequirements, batchAvailability, batchTimeSlots, subjects,
   faculty, facultySubjects, facultyBatches, facultyAvailability, facultyBlockedSlots,
   rooms, roomAvailability, roomBlockedSlots,
   timeSlots, holidays, workingDays
@@ -69,13 +69,15 @@ export async function buildSchedulerInput(params: {
 
   for (const b of batchRows) {
     const availRows = await db.query.batchAvailability.findMany({ where: eq(batchAvailability.batchId, b.id) });
+    const slotRows = await db.query.batchTimeSlots.findMany({ where: eq(batchTimeSlots.batchId, b.id) });
     batchDefs.push({
       id: b.id,
       name: b.name,
       studentCount: b.studentCount,
       maxClassesPerDay: b.maxClassesPerDay,
       maxConsecutiveClasses: b.maxConsecutiveClasses,
-      availability: availRows.length ? availabilityMap(availRows) : defaultAvailability(workingDaySet)
+      availability: availRows.length ? availabilityMap(availRows) : defaultAvailability(workingDaySet),
+      allowedSlotIds: slotRows.length ? new Set(slotRows.map((s) => s.timeSlotId)) : undefined
     });
 
     const reqRows = await db.query.batchSubjectRequirements.findMany({ where: eq(batchSubjectRequirements.batchId, b.id) });
