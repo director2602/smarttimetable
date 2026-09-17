@@ -7,6 +7,55 @@ import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 
+const createSchema = z.object({
+  name: z.string().min(1),
+  employeeId: z.string().min(1),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
+  maxClassesPerDay: z.coerce.number().int().min(1),
+  maxClassesPerWeek: z.coerce.number().int().min(1)
+});
+
+export async function createFaculty(formData: FormData) {
+  const user = await requirePermission("FACULTY_CREATE");
+  const parsed = createSchema.safeParse({
+    name: formData.get("name"),
+    employeeId: formData.get("employeeId"),
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+    maxClassesPerDay: formData.get("maxClassesPerDay") || 6,
+    maxClassesPerWeek: formData.get("maxClassesPerWeek") || 30
+  });
+  if (!parsed.success) return { error: parsed.error.errors[0]?.message || "Invalid input" };
+
+  const existing = await db.query.faculty.findFirst({
+    where: and(eq(faculty.organizationId, user.organizationId), eq(faculty.employeeId, parsed.data.employeeId))
+  });
+  if (existing) return { error: `Employee ID "${parsed.data.employeeId}" is already in use by ${existing.name}` };
+
+  const [row] = await db.insert(faculty).values({
+    organizationId: user.organizationId,
+    name: parsed.data.name,
+    employeeId: parsed.data.employeeId,
+    email: parsed.data.email || null,
+    phone: parsed.data.phone || null,
+    maxClassesPerDay: parsed.data.maxClassesPerDay,
+    maxClassesPerWeek: parsed.data.maxClassesPerWeek,
+    status: "ACTIVE"
+  }).returning();
+
+  for (let d = 0; d <= 6; d++) {
+    await db.insert(facultyAvailability).values({
+      facultyId: row.id, dayOfWeek: d, available: d !== 0,
+      startTime: d !== 0 ? "07:00" : null, endTime: d !== 0 ? "17:00" : null
+    });
+  }
+
+  await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "FACULTY_CREATED", entityType: "faculty", entityId: row.id });
+  revalidatePath("/faculty");
+  return { success: true };
+}
+
 export async function deleteFaculty(id: string) {
   const user = await requirePermission("FACULTY_DELETE");
   const existing = await db.query.faculty.findFirst({ where: eq(faculty.id, id) });

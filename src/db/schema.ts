@@ -239,6 +239,19 @@ export const workingDays = pgTable("working_days", {
   isWorking: boolean("is_working").notNull().default(true)
 }, (t) => ({ uq: uniqueIndex("working_day_uq").on(t.organizationId, t.dayOfWeek) }));
 
+export const tests = pgTable("tests", {
+  id: id(),
+  organizationId: text("organization_id").notNull().references(() => organizations.id),
+  name: text("name").notNull(),
+  date: text("date").notNull(),
+  batchId: text("batch_id").notNull().references(() => batches.id),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  roomId: text("room_id").references(() => rooms.id),
+  notes: text("notes"),
+  ...timestamps
+});
+
 export const batchTimeSlots = pgTable("batch_time_slots", {
   id: id(),
   batchId: text("batch_id").notNull().references(() => batches.id),

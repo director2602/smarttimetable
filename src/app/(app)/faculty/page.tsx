@@ -7,6 +7,7 @@ import FacultyRosterForm from "./faculty-roster-form";
 import FacultyEditForm from "./faculty-edit-form";
 import FacultyBatchAssignForm from "./faculty-batch-assign-form";
 import FacultyImportForm from "./faculty-import-form";
+import FacultyCreateForm from "./faculty-create-form";
 import { Fragment } from "react";
 
 export default async function FacultyPage() {
@@ -29,6 +30,7 @@ export default async function FacultyPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Faculty</h1>
+      <FacultyCreateForm />
       <FacultyImportForm />
       <div className="card overflow-hidden">
         <table className="w-full text-sm">

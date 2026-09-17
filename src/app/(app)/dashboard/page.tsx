@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { courses, batches, faculty, rooms, timetables, timetableEntries } from "@/db/schema";
+import { courses, batches, faculty, rooms, timetables, timetableEntries, facultySubjects, facultyBatches, batchSubjectRequirements } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
@@ -9,12 +9,15 @@ export default async function DashboardPage() {
   if (!user) return null;
   const orgId = user.organizationId;
 
-  const [courseRows, batchRows, facultyRows, roomRows, timetableRows] = await Promise.all([
+  const [courseRows, batchRows, facultyRows, roomRows, timetableRows, fsRows, fbRows, reqRows] = await Promise.all([
     db.query.courses.findMany({ where: eq(courses.organizationId, orgId) }),
     db.query.batches.findMany({ where: eq(batches.organizationId, orgId) }),
     db.query.faculty.findMany({ where: eq(faculty.organizationId, orgId) }),
     db.query.rooms.findMany({ where: eq(rooms.organizationId, orgId) }),
-    db.query.timetables.findMany({ where: eq(timetables.organizationId, orgId) })
+    db.query.timetables.findMany({ where: eq(timetables.organizationId, orgId) }),
+    db.query.facultySubjects.findMany(),
+    db.query.facultyBatches.findMany(),
+    db.query.batchSubjectRequirements.findMany()
   ]);
 
   const published = timetableRows.filter((t) => t.status === "PUBLISHED");
@@ -41,6 +44,26 @@ export default async function DashboardPage() {
   const facultyReport = Array.from(lecturesByFaculty.entries())
     .map(([facultyId, count]) => ({ name: facultyById.get(facultyId)?.name || "Unknown faculty", count }))
     .sort((a, b) => b.count - a.count);
+
+  // Total lectures allotted to each teacher: sum of weekly requirements for every
+  // (batch, subject) pair this faculty is assigned to teach — their planned workload,
+  // independent of whether a timetable has been generated yet.
+  const allottedByFaculty = new Map<string, number>();
+  for (const f of facultyRows) {
+    const theirSubjectIds = new Set(fsRows.filter((x) => x.facultyId === f.id).map((x) => x.subjectId));
+    const theirBatchIds = new Set(fbRows.filter((x) => x.facultyId === f.id).map((x) => x.batchId));
+    let total = 0;
+    for (const req of reqRows) {
+      if (theirBatchIds.has(req.batchId) && theirSubjectIds.has(req.subjectId)) {
+        total += req.classesPerWeek;
+      }
+    }
+    allottedByFaculty.set(f.id, total);
+  }
+  const allottedReport = facultyRows
+    .map((f) => ({ name: f.name, allotted: allottedByFaculty.get(f.id) || 0, maxPerWeek: f.maxClassesPerWeek }))
+    .filter((r) => r.allotted > 0)
+    .sort((a, b) => b.allotted - a.allotted);
 
   const cards = [
     { label: "Total Courses", value: courseRows.length },
@@ -76,6 +99,38 @@ export default async function DashboardPage() {
           data for S-CUBUS, or start adding Courses, Batches, Faculty and Rooms from the sidebar.
         </div>
       )}
+
+      <div>
+        <h2 className="text-lg font-semibold mb-1">Potential Weekly Teaching Load per Faculty</h2>
+        <p className="text-sm text-slate-500 mb-3">
+          Sum of weekly requirements across every batch + subject combination each teacher is currently eligible
+          for. When more than one teacher is eligible for the same subject in the same batch, it counts toward
+          both — so this shows upper-bound potential load, not a final assignment. For actual lectures once
+          scheduled, see the Cumulative Lecture Report below.
+        </p>
+        {allottedReport.length === 0 ? (
+          <div className="card p-5 text-sm text-slate-400">
+            No faculty have both a subject and a batch assignment with a weekly requirement yet.
+          </div>
+        ) : (
+          <div className="card overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-slate-500">
+                <tr><th className="px-4 py-2">Faculty</th><th className="px-4 py-2 text-right">Eligible lectures/week</th><th className="px-4 py-2 text-right">Their weekly cap</th></tr>
+              </thead>
+              <tbody>
+                {allottedReport.map((r) => (
+                  <tr key={r.name} className="border-t border-slate-100">
+                    <td className="px-4 py-2">{r.name}</td>
+                    <td className="px-4 py-2 text-right font-semibold">{r.allotted}</td>
+                    <td className="px-4 py-2 text-right text-slate-500">{r.maxPerWeek}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <div>
         <h2 className="text-lg font-semibold mb-1">Cumulative Lecture Report</h2>
