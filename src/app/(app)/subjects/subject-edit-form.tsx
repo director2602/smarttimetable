@@ -16,8 +16,11 @@ export default function SubjectEditForm({
     if (!confirm(`Delete ${subject.name}? This cannot be undone.`)) return;
     setError(null);
     startTransition(async () => {
-      try { await deleteSubject(subject.id); router.refresh(); }
-      catch (e) { setError((e as Error).message); }
+      try {
+        const res = await deleteSubject(subject.id);
+        if (res?.error) { setError(res.error); return; }
+        router.refresh();
+      } catch (e) { setError((e as Error).message); }
     });
   }
 

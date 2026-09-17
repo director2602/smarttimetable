@@ -10,11 +10,11 @@ import * as XLSX from "xlsx";
 export async function deleteFaculty(id: string) {
   const user = await requirePermission("FACULTY_DELETE");
   const existing = await db.query.faculty.findFirst({ where: eq(faculty.id, id) });
-  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Faculty not found");
+  if (!existing || existing.organizationId !== user.organizationId) return { error: "Faculty not found" };
 
   const usedEntries = await db.query.timetableEntries.findMany({ where: eq(timetableEntries.facultyId, id) });
   if (usedEntries.length > 0) {
-    throw new Error(`Cannot delete — ${existing.name} appears in ${usedEntries.length} scheduled class(es) across one or more timetables. Set them to Inactive instead, or remove those classes first.`);
+    return { error: `Cannot delete — ${existing.name} appears in ${usedEntries.length} scheduled class(es) across one or more timetables. Set them to Inactive instead, or remove those classes first.` };
   }
 
   await db.delete(facultySubjects).where(eq(facultySubjects.facultyId, id));
@@ -25,6 +25,7 @@ export async function deleteFaculty(id: string) {
 
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "FACULTY_DELETED", entityType: "faculty", entityId: id, metadata: JSON.stringify({ name: existing.name }) });
   revalidatePath("/faculty");
+  return { success: true };
 }
 
 export async function editFaculty(formData: FormData) {

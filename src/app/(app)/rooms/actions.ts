@@ -9,11 +9,11 @@ import { revalidatePath } from "next/cache";
 export async function deleteRoom(id: string) {
   const user = await requirePermission("ROOM_DELETE");
   const existing = await db.query.rooms.findFirst({ where: eq(rooms.id, id) });
-  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Room not found");
+  if (!existing || existing.organizationId !== user.organizationId) return { error: "Room not found" };
 
   const usedEntries = await db.query.timetableEntries.findMany({ where: eq(timetableEntries.roomId, id) });
   if (usedEntries.length > 0) {
-    throw new Error(`Cannot delete — ${existing.name} appears in ${usedEntries.length} scheduled class(es) across one or more timetables. Set it to Inactive instead, or remove those classes first.`);
+    return { error: `Cannot delete — ${existing.name} appears in ${usedEntries.length} scheduled class(es) across one or more timetables. Set it to Inactive instead, or remove those classes first.` };
   }
 
   await db.delete(roomAvailability).where(eq(roomAvailability.roomId, id));
@@ -21,6 +21,7 @@ export async function deleteRoom(id: string) {
   await db.delete(rooms).where(and(eq(rooms.id, id), eq(rooms.organizationId, user.organizationId)));
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "ROOM_DELETED", entityType: "room", entityId: id, metadata: JSON.stringify({ name: existing.name }) });
   revalidatePath("/rooms");
+  return { success: true };
 }
 
 const roomSchema = z.object({

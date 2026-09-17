@@ -20,8 +20,11 @@ export default function RoomEditForm({
     if (!confirm(`Delete ${room.name}? This cannot be undone.`)) return;
     setError(null);
     startTransition(async () => {
-      try { await deleteRoom(room.id); router.refresh(); }
-      catch (e) { setError((e as Error).message); }
+      try {
+        const res = await deleteRoom(room.id);
+        if (res?.error) { setError(res.error); return; }
+        router.refresh();
+      } catch (e) { setError((e as Error).message); }
     });
   }
 

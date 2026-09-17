@@ -30,9 +30,9 @@ export async function setBatchRequirement(formData: FormData) {
   const classesPerWeek = Number(formData.get("classesPerWeek"));
 
   const batch = await db.query.batches.findFirst({ where: eq(batches.id, batchId) });
-  if (!batch || batch.organizationId !== user.organizationId) throw new Error("Batch not found");
-  if (!subjectId) throw new Error("Select a subject");
-  if (!classesPerWeek || classesPerWeek < 1) throw new Error("Classes per week must be at least 1");
+  if (!batch || batch.organizationId !== user.organizationId) return { error: "Batch not found" };
+  if (!subjectId) return { error: "Select a subject" };
+  if (!classesPerWeek || classesPerWeek < 1) return { error: "Classes per week must be at least 1" };
 
   const existing = await db.query.batchSubjectRequirements.findFirst({
     where: and(eq(batchSubjectRequirements.batchId, batchId), eq(batchSubjectRequirements.subjectId, subjectId))
@@ -45,6 +45,7 @@ export async function setBatchRequirement(formData: FormData) {
 
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "BATCH_REQUIREMENT_SET", entityType: "batch", entityId: batchId });
   revalidatePath("/batches");
+  return { success: true };
 }
 
 export async function removeBatchRequirement(batchId: string, subjectId: string) {
@@ -106,11 +107,11 @@ export async function updateBatchAvailability(batchId: string, days: { dayOfWeek
 export async function deleteBatch(id: string) {
   const user = await requirePermission("BATCH_DELETE");
   const existing = await db.query.batches.findFirst({ where: eq(batches.id, id) });
-  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Batch not found");
+  if (!existing || existing.organizationId !== user.organizationId) return { error: "Batch not found" };
 
   const usedEntries = await db.query.timetableEntries.findMany({ where: eq(timetableEntries.batchId, id) });
   if (usedEntries.length > 0) {
-    throw new Error(`Cannot delete — ${existing.name} appears in ${usedEntries.length} scheduled class(es) across one or more timetables. Archive it instead, or remove those classes first.`);
+    return { error: `Cannot delete — ${existing.name} appears in ${usedEntries.length} scheduled class(es) across one or more timetables. Archive it instead, or remove those classes first.` };
   }
 
   await db.delete(batchSubjectRequirements).where(eq(batchSubjectRequirements.batchId, id));
@@ -120,6 +121,7 @@ export async function deleteBatch(id: string) {
 
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "BATCH_DELETED", entityType: "batch", entityId: id, metadata: JSON.stringify({ name: existing.name }) });
   revalidatePath("/batches");
+  return { success: true };
 }
 
 export async function editBatch(formData: FormData) {

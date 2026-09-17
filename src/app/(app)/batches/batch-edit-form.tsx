@@ -20,8 +20,11 @@ export default function BatchEditForm({
     if (!confirm(`Delete ${batch.name}? This cannot be undone.`)) return;
     setError(null);
     startTransition(async () => {
-      try { await deleteBatch(batch.id); router.refresh(); }
-      catch (e) { setError((e as Error).message); }
+      try {
+        const res = await deleteBatch(batch.id);
+        if (res?.error) { setError(res.error); return; }
+        router.refresh();
+      } catch (e) { setError((e as Error).message); }
     });
   }
 

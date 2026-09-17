@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 export async function deleteTimetable(id: string) {
   const user = await requirePermission("TIMETABLE_DELETE");
   const existing = await db.query.timetables.findFirst({ where: eq(timetables.id, id) });
-  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Timetable not found");
+  if (!existing || existing.organizationId !== user.organizationId) return { error: "Timetable not found" };
 
   await db.delete(timetableChangeLog).where(eq(timetableChangeLog.timetableId, id));
   await db.delete(timetableEntries).where(eq(timetableEntries.timetableId, id));
@@ -22,4 +22,5 @@ export async function deleteTimetable(id: string) {
   revalidatePath("/timetable");
   revalidatePath("/batches");
   revalidatePath("/courses");
+  return { success: true };
 }

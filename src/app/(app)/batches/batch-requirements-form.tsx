@@ -46,8 +46,12 @@ export default function BatchRequirementsForm({
             formData.set("batchId", batchId);
             setError(null);
             startTransition(async () => {
-              try { await setBatchRequirement(formData); setAdding(false); router.refresh(); }
-              catch (e) { setError((e as Error).message); }
+              try {
+                const res = await setBatchRequirement(formData);
+                if (res?.error) { setError(res.error); return; }
+                setAdding(false);
+                router.refresh();
+              } catch (e) { setError((e as Error).message); }
             });
           }}
         >

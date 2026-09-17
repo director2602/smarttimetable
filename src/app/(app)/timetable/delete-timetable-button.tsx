@@ -18,8 +18,11 @@ export default function DeleteTimetableButton({ id, weekStartDate }: { id: strin
           if (!confirm(`Delete the timetable for week of ${weekStartDate}? This removes all its scheduled classes too. This cannot be undone.`)) return;
           setError(null);
           startTransition(async () => {
-            try { await deleteTimetable(id); router.refresh(); }
-            catch (e) { setError((e as Error).message); }
+            try {
+              const res = await deleteTimetable(id);
+              if (res?.error) { setError(res.error); return; }
+              router.refresh();
+            } catch (e) { setError((e as Error).message); }
           });
         }}
       >

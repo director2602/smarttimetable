@@ -9,16 +9,17 @@ import { revalidatePath } from "next/cache";
 export async function deleteCourse(id: string) {
   const user = await requirePermission("COURSE_DELETE");
   const existing = await db.query.courses.findFirst({ where: eq(courses.id, id) });
-  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Course not found");
+  if (!existing || existing.organizationId !== user.organizationId) return { error: "Course not found" };
 
   const dependentBatches = await db.query.batches.findMany({ where: eq(batches.courseId, id) });
   if (dependentBatches.length > 0) {
-    throw new Error(`Cannot delete — ${dependentBatches.length} batch(es) belong to this course (${dependentBatches.map((b) => b.name).join(", ")}). Delete or reassign them first.`);
+    return { error: `Cannot delete — ${dependentBatches.length} batch(es) belong to this course (${dependentBatches.map((b) => b.name).join(", ")}). Delete or reassign them first.` };
   }
 
   await db.delete(courses).where(and(eq(courses.id, id), eq(courses.organizationId, user.organizationId)));
   await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "COURSE_DELETED", entityType: "course", entityId: id, metadata: JSON.stringify({ name: existing.name }) });
   revalidatePath("/courses");
+  return { success: true };
 }
 
 export async function createCourse(formData: FormData) {

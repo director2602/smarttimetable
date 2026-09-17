@@ -16,8 +16,11 @@ export default function CourseEditForm({
     if (!confirm(`Delete ${course.name}? This cannot be undone.`)) return;
     setError(null);
     startTransition(async () => {
-      try { await deleteCourse(course.id); router.refresh(); }
-      catch (e) { setError((e as Error).message); }
+      try {
+        const res = await deleteCourse(course.id);
+        if (res?.error) { setError(res.error); return; }
+        router.refresh();
+      } catch (e) { setError((e as Error).message); }
     });
   }
 

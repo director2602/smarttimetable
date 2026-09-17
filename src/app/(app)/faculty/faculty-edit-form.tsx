@@ -20,8 +20,11 @@ export default function FacultyEditForm({
     if (!confirm(`Delete ${f.name}? This cannot be undone.`)) return;
     setError(null);
     startTransition(async () => {
-      try { await deleteFaculty(f.id); router.refresh(); }
-      catch (e) { setError((e as Error).message); }
+      try {
+        const res = await deleteFaculty(f.id);
+        if (res?.error) { setError(res.error); return; }
+        router.refresh();
+      } catch (e) { setError((e as Error).message); }
     });
   }
 
