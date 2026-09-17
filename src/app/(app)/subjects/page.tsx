@@ -15,6 +15,7 @@ export default async function SubjectsPage() {
     db.query.userPermissions.findMany({ where: eq(userPermissions.userId, user.id) })
   ]);
   const canEdit = resolvePermission(user.role as Role, overrides, "SUBJECT_EDIT");
+  const canDelete = resolvePermission(user.role as Role, overrides, "SUBJECT_DELETE");
 
   return (
     <div className="space-y-6">
@@ -33,7 +34,7 @@ export default async function SubjectsPage() {
             <Fragment key={r.id}>
               <tr className="border-t border-slate-100">
                 <td className="px-4 py-2">{r.name}</td><td className="px-4 py-2">{r.code}</td>
-                <td className="px-4 py-2 text-right"><SubjectEditForm subject={r} canEdit={canEdit} /></td>
+                <td className="px-4 py-2 text-right"><SubjectEditForm subject={r} canEdit={canEdit} canDelete={canDelete} /></td>
               </tr>
             </Fragment>
           ))}</tbody>

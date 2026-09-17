@@ -23,6 +23,7 @@ export default async function FacultyPage() {
   ]);
   const subjById = new Map(subjectRows.map((s) => [s.id, s]));
   const canEdit = resolvePermission(user.role as Role, overrides, "FACULTY_EDIT");
+  const canDelete = resolvePermission(user.role as Role, overrides, "FACULTY_DELETE");
   const allBatches = batchRows.map((b) => ({ id: b.id, name: b.name }));
 
   return (
@@ -45,7 +46,7 @@ export default async function FacultyPage() {
                   <td className="px-4 py-2">{f.maxClassesPerWeek}</td>
                   <td className="px-4 py-2">{f.status}</td>
                   <td className="px-4 py-2 text-right">
-                    <FacultyEditForm f={f} canEdit={canEdit} />
+                    <FacultyEditForm f={f} canEdit={canEdit} canDelete={canDelete} />
                   </td>
                 </tr>
                 <tr className="bg-slate-50/50">

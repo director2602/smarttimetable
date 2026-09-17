@@ -2,21 +2,40 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { editRoom } from "./actions";
+import { editRoom, deleteRoom } from "./actions";
 
 export default function RoomEditForm({
-  room, canEdit
+  room, canEdit, canDelete
 }: {
   room: { id: string; name: string; code: string; capacity: number; type: string; building: string | null; floor: string | null; status: string };
   canEdit: boolean;
+  canDelete?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  if (!canEdit) return null;
-  if (!editing) return <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(true)}>Edit</button>;
+  function handleDelete() {
+    if (!confirm(`Delete ${room.name}? This cannot be undone.`)) return;
+    setError(null);
+    startTransition(async () => {
+      try { await deleteRoom(room.id); router.refresh(); }
+      catch (e) { setError((e as Error).message); }
+    });
+  }
+
+  if (!editing) {
+    return (
+      <div>
+        <div className="space-x-3">
+          {canEdit && <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(true)}>Edit</button>}
+          {canDelete && <button className="text-xs text-red-600 hover:underline" disabled={pending} onClick={handleDelete}>{pending ? "Deleting..." : "Delete"}</button>}
+        </div>
+        {error && <p className="text-xs text-red-600 mt-1 max-w-xs ml-auto text-left">{error}</p>}
+      </div>
+    );
+  }
 
   return (
     <form

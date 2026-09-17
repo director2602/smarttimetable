@@ -1,10 +1,27 @@
 "use server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/db";
-import { rooms, auditLogs } from "@/db/schema";
+import { rooms, auditLogs, roomAvailability, roomBlockedSlots, timetableEntries } from "@/db/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+
+export async function deleteRoom(id: string) {
+  const user = await requirePermission("ROOM_DELETE");
+  const existing = await db.query.rooms.findFirst({ where: eq(rooms.id, id) });
+  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Room not found");
+
+  const usedEntries = await db.query.timetableEntries.findMany({ where: eq(timetableEntries.roomId, id) });
+  if (usedEntries.length > 0) {
+    throw new Error(`Cannot delete — ${existing.name} appears in ${usedEntries.length} scheduled class(es) across one or more timetables. Set it to Inactive instead, or remove those classes first.`);
+  }
+
+  await db.delete(roomAvailability).where(eq(roomAvailability.roomId, id));
+  await db.delete(roomBlockedSlots).where(eq(roomBlockedSlots.roomId, id));
+  await db.delete(rooms).where(and(eq(rooms.id, id), eq(rooms.organizationId, user.organizationId)));
+  await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "ROOM_DELETED", entityType: "room", entityId: id, metadata: JSON.stringify({ name: existing.name }) });
+  revalidatePath("/rooms");
+}
 
 const roomSchema = z.object({
   name: z.string().min(1),

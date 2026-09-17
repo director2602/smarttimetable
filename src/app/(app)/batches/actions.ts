@@ -1,7 +1,7 @@
 "use server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/db";
-import { batches, auditLogs, batchAvailability } from "@/db/schema";
+import { batches, auditLogs, batchAvailability, batchSubjectRequirements, facultyBatches, timetableEntries } from "@/db/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -49,6 +49,25 @@ export async function updateBatchAvailability(batchId: string, days: { dayOfWeek
     metadata: JSON.stringify({ days })
   });
 
+  revalidatePath("/batches");
+}
+
+export async function deleteBatch(id: string) {
+  const user = await requirePermission("BATCH_DELETE");
+  const existing = await db.query.batches.findFirst({ where: eq(batches.id, id) });
+  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Batch not found");
+
+  const usedEntries = await db.query.timetableEntries.findMany({ where: eq(timetableEntries.batchId, id) });
+  if (usedEntries.length > 0) {
+    throw new Error(`Cannot delete — ${existing.name} appears in ${usedEntries.length} scheduled class(es) across one or more timetables. Archive it instead, or remove those classes first.`);
+  }
+
+  await db.delete(batchSubjectRequirements).where(eq(batchSubjectRequirements.batchId, id));
+  await db.delete(batchAvailability).where(eq(batchAvailability.batchId, id));
+  await db.delete(facultyBatches).where(eq(facultyBatches.batchId, id));
+  await db.delete(batches).where(and(eq(batches.id, id), eq(batches.organizationId, user.organizationId)));
+
+  await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "BATCH_DELETED", entityType: "batch", entityId: id, metadata: JSON.stringify({ name: existing.name }) });
   revalidatePath("/batches");
 }
 

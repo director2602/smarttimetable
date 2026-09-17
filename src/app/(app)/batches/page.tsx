@@ -20,6 +20,7 @@ export default async function BatchesPage() {
   const courseById = new Map(courseRows.map((c) => [c.id, c]));
   const subjById = new Map(subjectRows.map((s) => [s.id, s]));
   const canEdit = resolvePermission(user.role as Role, overrides, "BATCH_EDIT");
+  const canDelete = resolvePermission(user.role as Role, overrides, "BATCH_DELETE");
 
   return (
     <div className="space-y-6">
@@ -47,7 +48,7 @@ export default async function BatchesPage() {
                 ))}
               </div>
               <div className="mt-2">
-                <BatchEditForm batch={b} canEdit={canEdit} />
+                <BatchEditForm batch={b} canEdit={canEdit} canDelete={canDelete} />
               </div>
               <BatchRosterForm
                 batchId={b.id}

@@ -1,11 +1,31 @@
 "use server";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/db";
-import { faculty, facultyAvailability, facultyBatches, facultySubjects, subjects, batches, auditLogs } from "@/db/schema";
+import { faculty, facultyAvailability, facultyBatches, facultySubjects, facultyBlockedSlots, subjects, batches, timetableEntries, auditLogs } from "@/db/schema";
 import { z } from "zod";
 import { eq, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
+
+export async function deleteFaculty(id: string) {
+  const user = await requirePermission("FACULTY_DELETE");
+  const existing = await db.query.faculty.findFirst({ where: eq(faculty.id, id) });
+  if (!existing || existing.organizationId !== user.organizationId) throw new Error("Faculty not found");
+
+  const usedEntries = await db.query.timetableEntries.findMany({ where: eq(timetableEntries.facultyId, id) });
+  if (usedEntries.length > 0) {
+    throw new Error(`Cannot delete — ${existing.name} appears in ${usedEntries.length} scheduled class(es) across one or more timetables. Set them to Inactive instead, or remove those classes first.`);
+  }
+
+  await db.delete(facultySubjects).where(eq(facultySubjects.facultyId, id));
+  await db.delete(facultyBatches).where(eq(facultyBatches.facultyId, id));
+  await db.delete(facultyAvailability).where(eq(facultyAvailability.facultyId, id));
+  await db.delete(facultyBlockedSlots).where(eq(facultyBlockedSlots.facultyId, id));
+  await db.delete(faculty).where(and(eq(faculty.id, id), eq(faculty.organizationId, user.organizationId)));
+
+  await db.insert(auditLogs).values({ organizationId: user.organizationId, userId: user.id, action: "FACULTY_DELETED", entityType: "faculty", entityId: id, metadata: JSON.stringify({ name: existing.name }) });
+  revalidatePath("/faculty");
+}
 
 export async function editFaculty(formData: FormData) {
   const user = await requirePermission("FACULTY_EDIT");

@@ -15,6 +15,7 @@ export default async function RoomsPage() {
     db.query.userPermissions.findMany({ where: eq(userPermissions.userId, user.id) })
   ]);
   const canEdit = resolvePermission(user.role as Role, overrides, "ROOM_EDIT");
+  const canDelete = resolvePermission(user.role as Role, overrides, "ROOM_DELETE");
   const canCreate = resolvePermission(user.role as Role, overrides, "ROOM_CREATE");
 
   return (
@@ -42,7 +43,7 @@ export default async function RoomsPage() {
                 <tr className="border-t border-slate-100">
                   <td className="px-4 py-2 font-medium">{r.name}</td><td className="px-4 py-2">{r.code}</td>
                   <td className="px-4 py-2">{r.capacity}</td><td className="px-4 py-2">{r.type}</td><td className="px-4 py-2">{r.status}</td>
-                  <td className="px-4 py-2 text-right"><RoomEditForm room={r} canEdit={canEdit} /></td>
+                  <td className="px-4 py-2 text-right"><RoomEditForm room={r} canEdit={canEdit} canDelete={canDelete} /></td>
                 </tr>
               </Fragment>
             ))}

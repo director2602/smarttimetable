@@ -2,26 +2,38 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { editBatch } from "./actions";
+import { editBatch, deleteBatch } from "./actions";
 
 export default function BatchEditForm({
-  batch, canEdit
+  batch, canEdit, canDelete
 }: {
   batch: { id: string; name: string; code: string; studentCount: number; maxClassesPerDay: number; maxConsecutiveClasses: number };
   canEdit: boolean;
+  canDelete?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  if (!canEdit) return null;
+  function handleDelete() {
+    if (!confirm(`Delete ${batch.name}? This cannot be undone.`)) return;
+    setError(null);
+    startTransition(async () => {
+      try { await deleteBatch(batch.id); router.refresh(); }
+      catch (e) { setError((e as Error).message); }
+    });
+  }
 
   if (!editing) {
     return (
-      <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(true)}>
-        Edit
-      </button>
+      <div>
+        <div className="space-x-3">
+          {canEdit && <button className="text-xs text-brand-600 hover:underline" onClick={() => setEditing(true)}>Edit</button>}
+          {canDelete && <button className="text-xs text-red-600 hover:underline" disabled={pending} onClick={handleDelete}>{pending ? "Deleting..." : "Delete"}</button>}
+        </div>
+        {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+      </div>
     );
   }
 
