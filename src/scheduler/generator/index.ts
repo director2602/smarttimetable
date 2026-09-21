@@ -69,6 +69,12 @@ export function generateAttempt(input: SchedulerInput, seed = 1): SchedulerResul
       ? requirement.eligibleFacultyIds
       : input.faculty.filter((f) => f.subjectIds.includes(requirement.subjectId)).map((f) => f.id);
 
+    if (facultyOptions.length === 0) {
+      candidateReasonsSample.add(
+        `No faculty is assigned to teach ${requirement.subjectName} for this batch — assign a faculty member to this subject and batch under Faculty`
+      );
+    }
+
     for (const dateSlot of input.dateSlots) {
       for (const facultyId of facultyOptions) {
         const faculty = facultyById.get(facultyId);
