@@ -3,10 +3,9 @@
 import { requirePermission } from "@/lib/auth";
 import { buildSchedulerInput } from "@/scheduler/build-input";
 import { generateMultipleAttempts } from "@/scheduler/generator";
-import { hasHardConflicts, validateSchedule } from "@/scheduler/validator";
 import { db } from "@/db";
-import { timetables, timetableEntries, auditLogs } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { timetables, timetableEntries, batchSubjectProgress, auditLogs } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function generateTimetableAction(input: {
@@ -41,7 +40,8 @@ export async function generateTimetableAction(input: {
     scheduledTotal: a.scheduledTotal,
     unscheduled: a.unscheduled,
     warnings: a.warnings,
-    entries: a.entries
+    entries: a.entries,
+    progressUpdates: Array.from(a.progressUpdates.entries()) // Map isn't serializable across the server action boundary
   }));
 }
 
@@ -53,10 +53,11 @@ export async function saveGeneratedTimetableAction(input: {
   scheduledTotal: number;
   unscheduled: unknown;
   entries: {
-    batchId: string; subjectId: string; facultyId: string; roomId: string;
-    date: string; dayOfWeek: number; startTime: string; endTime: string;
+    batchId: string; subjectId: string | null; facultyId: string | null; lectureId: string | null; roomId: string;
+    date: string; dayOfWeek: number; startTime: string; endTime: string; classType: "REGULAR" | "DOUBTS";
   }[];
   warnings?: string[];
+  progressUpdates?: [string, number][]; // [`${batchId}:${subjectId}`, lastLectureSortOrder]
 }) {
   const user = await requirePermission("TIMETABLE_CREATE");
 
@@ -76,8 +77,25 @@ export async function saveGeneratedTimetableAction(input: {
 
   if (input.entries.length > 0) {
     await db.insert(timetableEntries).values(
-      input.entries.map((e) => ({ timetableId: tt.id, classType: "REGULAR", ...e }))
+      input.entries.map((e) => ({ timetableId: tt.id, ...e }))
     );
+  }
+
+  // Persist chapter progress so the NEXT generation picks up where this one left off.
+  // Only ever advances forward — never rolls back if an older draft is saved again.
+  for (const [key, sortOrder] of input.progressUpdates || []) {
+    const [batchId, subjectId] = key.split(":");
+    if (!batchId || !subjectId) continue;
+    const existing = await db.query.batchSubjectProgress.findFirst({
+      where: and(eq(batchSubjectProgress.batchId, batchId), eq(batchSubjectProgress.subjectId, subjectId))
+    });
+    if (existing) {
+      if (sortOrder > existing.lastLectureSortOrder) {
+        await db.update(batchSubjectProgress).set({ lastLectureSortOrder: sortOrder, updatedAt: new Date().toISOString() }).where(eq(batchSubjectProgress.id, existing.id));
+      }
+    } else {
+      await db.insert(batchSubjectProgress).values({ batchId, subjectId, lastLectureSortOrder: sortOrder });
+    }
   }
 
   await db.insert(auditLogs).values({
@@ -96,10 +114,13 @@ export async function publishTimetableAction(timetableId: string) {
   const user = await requirePermission("TIMETABLE_PUBLISH");
 
   const entries = await db.query.timetableEntries.findMany({ where: eq(timetableEntries.timetableId, timetableId) });
-  // Re-validate structurally (batch/faculty/room double-booking) directly from saved entries
+  // Re-validate structurally (batch/faculty/room double-booking) directly from saved entries.
+  // Null faculty (DOUBTS periods) is never a real conflict, so it's excluded from that check.
   const seen = new Map<string, string>();
   for (const e of entries) {
-    for (const key of [`B:${e.batchId}:${e.date}:${e.startTime}`, `F:${e.facultyId}:${e.date}:${e.startTime}`, `R:${e.roomId}:${e.date}:${e.startTime}`]) {
+    const keys = [`B:${e.batchId}:${e.date}:${e.startTime}`, `R:${e.roomId}:${e.date}:${e.startTime}`];
+    if (e.facultyId) keys.push(`F:${e.facultyId}:${e.date}:${e.startTime}`);
+    for (const key of keys) {
       if (seen.has(key)) {
         return { error: "Cannot publish: hard conflicts detected in the current timetable. Resolve them in the Conflicts dashboard first." };
       }

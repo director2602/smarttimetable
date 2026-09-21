@@ -34,7 +34,9 @@ export default async function DashboardPage() {
   const lecturesByFaculty = new Map<string, number>();
   for (const e of entries) {
     lecturesByBatch.set(e.batchId, (lecturesByBatch.get(e.batchId) || 0) + 1);
-    lecturesByFaculty.set(e.facultyId, (lecturesByFaculty.get(e.facultyId) || 0) + 1);
+    if (e.facultyId) {
+      lecturesByFaculty.set(e.facultyId, (lecturesByFaculty.get(e.facultyId) || 0) + 1);
+    }
   }
 
   const batchReport = Array.from(lecturesByBatch.entries())

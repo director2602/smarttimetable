@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { timetables, timetableEntries, batches, courses, subjects, faculty, rooms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { timetables, timetableEntries, batches, courses, subjects, faculty, rooms, lectures } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import * as XLSX from "xlsx";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -29,18 +29,24 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const facultyById = new Map(facultyRows.map((f) => [f.id, f]));
   const roomById = new Map(roomRows.map((r) => [r.id, r]));
 
+  const lectureIds = Array.from(new Set(entries.map((e) => e.lectureId).filter((x): x is string => !!x)));
+  const lectureRows = lectureIds.length ? await db.query.lectures.findMany({ where: inArray(lectures.id, lectureIds) }) : [];
+  const lectureById = new Map(lectureRows.map((l) => [l.id, l]));
+
   const sorted = [...entries].sort((a, b) => (a.date.localeCompare(b.date)) || a.startTime.localeCompare(b.startTime) || (batchById.get(a.batchId)?.name || "").localeCompare(batchById.get(b.batchId)?.name || ""));
 
   const sheetData = sorted.map((e) => {
     const batch = batchById.get(e.batchId);
     const course = batch ? courseById.get(batch.courseId) : undefined;
+    const lecture = e.lectureId ? lectureById.get(e.lectureId) : null;
     return {
       Date: e.date,
       Day: DAY_NAMES[e.dayOfWeek],
       Course: course?.name || "",
       Batch: batch?.name || "",
-      Subject: subjById.get(e.subjectId)?.name || "",
-      Faculty: facultyById.get(e.facultyId)?.name || "",
+      Subject: e.classType === "DOUBTS" ? "DOUBTS" : e.classType === "OTHER" ? (e.notes || "Other") : (e.subjectId ? subjById.get(e.subjectId)?.name || "" : ""),
+      Chapter: lecture ? `${lecture.code} — ${lecture.name}` : "",
+      Faculty: e.facultyId ? facultyById.get(e.facultyId)?.name || "" : "",
       Room: roomById.get(e.roomId)?.name || "",
       "Start Time": e.startTime,
       "End Time": e.endTime,
@@ -52,7 +58,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const ws = XLSX.utils.json_to_sheet(sheetData);
   ws["!cols"] = [
     { wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 14 },
-    { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }
+    { wch: 26 }, { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }
   ];
   XLSX.utils.book_append_sheet(wb, ws, "Timetable");
 

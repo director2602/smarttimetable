@@ -1,9 +1,11 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { timetables, timetableEntries, batches, subjects, faculty, rooms, timeSlots } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { timetables, timetableEntries, batches, subjects, faculty, rooms, timeSlots, lectures } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import PublishButton from "./publish-button";
 import DeleteTimetableButton from "../delete-timetable-button";
+import ManualEntryForm from "./manual-entry-form";
+import DeleteEntryButton from "./delete-entry-button";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -23,11 +25,28 @@ export default async function TimetableDetailPage({ params }: { params: { id: st
     db.query.timeSlots.findMany({ where: eq(timeSlots.organizationId, user.organizationId), orderBy: (t, { asc }) => asc(t.sortOrder) })
   ]);
 
+  const lectureIds = Array.from(new Set(entries.map((e) => e.lectureId).filter((x): x is string => !!x)));
+  const lectureRows = lectureIds.length ? await db.query.lectures.findMany({ where: inArray(lectures.id, lectureIds) }) : [];
+  const lectureById = new Map(lectureRows.map((l) => [l.id, l]));
+
   const batchById = new Map(batchRows.map((b) => [b.id, b]));
   const subjById = new Map(subjectRows.map((s) => [s.id, s]));
   const facultyById = new Map(facultyRows.map((f) => [f.id, f]));
   const roomById = new Map(roomRows.map((r) => [r.id, r]));
-  const classSlots = slotRows.filter((s) => s.type === "CLASS");
+
+  // Grid rows = every configured CLASS/DOUBTS slot, PLUS any entry time that doesn't match
+  // a configured slot (e.g. a manually-added one-off class at a custom time) — so nothing
+  // placed on this timetable is ever silently invisible in the grid.
+  const configuredSlotTimes = new Set(slotRows.filter((s) => s.type === "CLASS" || s.type === "DOUBTS").map((s) => s.startTime));
+  const extraTimes = Array.from(new Set(entries.map((e) => e.startTime).filter((t) => !configuredSlotTimes.has(t))))
+    .map((t) => {
+      const entry = entries.find((e) => e.startTime === t)!;
+      return { id: `extra-${t}`, startTime: t, endTime: entry.endTime, type: "CLASS" as const };
+    });
+  const gridSlots = [
+    ...slotRows.filter((s) => s.type === "CLASS" || s.type === "DOUBTS"),
+    ...extraTimes
+  ].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const byDaySlot = new Map<string, typeof entries>();
   for (const e of entries) {
@@ -70,6 +89,16 @@ export default async function TimetableDetailPage({ params }: { params: { id: st
         </div>
       )}
 
+      {tt.status !== "PUBLISHED" && (
+        <ManualEntryForm
+          timetableId={tt.id}
+          batches={batchRows.map((b) => ({ id: b.id, name: b.name }))}
+          rooms={roomRows.map((r) => ({ id: r.id, name: r.name }))}
+          subjects={subjectRows.map((s) => ({ id: s.id, name: s.name }))}
+          faculty={facultyRows.map((f) => ({ id: f.id, name: f.name }))}
+        />
+      )}
+
       <div className="card overflow-x-auto">
         <table className="w-full text-xs border-collapse">
           <thead>
@@ -81,24 +110,53 @@ export default async function TimetableDetailPage({ params }: { params: { id: st
             </tr>
           </thead>
           <tbody>
-            {classSlots.map((slot) => (
+            {gridSlots.map((slot) => (
               <tr key={slot.id}>
                 <td className="border border-slate-200 px-2 py-2 font-medium text-slate-500 whitespace-nowrap">
                   {slot.startTime}–{slot.endTime}
+                  {slot.type === "DOUBTS" && <div className="text-[10px] text-amber-600">DOUBTS</div>}
                 </td>
                 {[1, 2, 3, 4, 5, 6, 0].map((d) => {
                   const cellEntries = byDaySlot.get(`${d}:${slot.startTime}`) || [];
                   return (
                     <td key={d} className="border border-slate-200 px-1 py-1 align-top min-w-[130px]">
                       <div className="space-y-1">
-                        {cellEntries.map((e) => (
-                          <div key={e.id} className="bg-brand-50 border border-brand-100 rounded px-2 py-1">
-                            <div className="font-semibold text-brand-700">{subjById.get(e.subjectId)?.name}</div>
-                            <div className="text-slate-600">{facultyById.get(e.facultyId)?.name}</div>
-                            <div className="text-slate-500">{roomById.get(e.roomId)?.name}</div>
-                            <div className="text-slate-500">{batchById.get(e.batchId)?.name}</div>
-                          </div>
-                        ))}
+                        {cellEntries.map((e) => {
+                          const canDelete = tt.status !== "PUBLISHED";
+                          if (e.classType === "DOUBTS") {
+                            return (
+                              <div key={e.id} className="bg-amber-50 border border-amber-100 rounded px-2 py-1 relative group">
+                                <div className="font-semibold text-amber-700">DOUBTS</div>
+                                <div className="text-slate-500">{roomById.get(e.roomId)?.name}</div>
+                                <div className="text-slate-500">{batchById.get(e.batchId)?.name}</div>
+                                {canDelete && <DeleteEntryButton entryId={e.id} timetableId={tt.id} />}
+                              </div>
+                            );
+                          }
+                          if (e.classType === "OTHER") {
+                            return (
+                              <div key={e.id} className="bg-slate-100 border border-slate-200 rounded px-2 py-1 relative group">
+                                <div className="font-semibold text-slate-700">{e.notes || "Other"}</div>
+                                <div className="text-slate-500">{roomById.get(e.roomId)?.name}</div>
+                                <div className="text-slate-500">{batchById.get(e.batchId)?.name}</div>
+                                {canDelete && <DeleteEntryButton entryId={e.id} timetableId={tt.id} />}
+                              </div>
+                            );
+                          }
+                          const lecture = e.lectureId ? lectureById.get(e.lectureId) : null;
+                          return (
+                            <div key={e.id} className="bg-brand-50 border border-brand-100 rounded px-2 py-1 relative group">
+                              <div className="font-semibold text-brand-700">
+                                {lecture ? lecture.code : (e.subjectId ? subjById.get(e.subjectId)?.name : "")}
+                              </div>
+                              {lecture && <div className="text-[10px] text-slate-500">{lecture.name}</div>}
+                              <div className="text-slate-600">{e.facultyId ? facultyById.get(e.facultyId)?.name : ""}</div>
+                              <div className="text-slate-500">{roomById.get(e.roomId)?.name}</div>
+                              <div className="text-slate-500">{batchById.get(e.batchId)?.name}</div>
+                              {canDelete && <DeleteEntryButton entryId={e.id} timetableId={tt.id} />}
+                            </div>
+                          );
+                        })}
                       </div>
                     </td>
                   );

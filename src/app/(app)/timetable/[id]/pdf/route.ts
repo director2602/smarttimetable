@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
-import { timetables, timetableEntries, batches, courses, subjects, faculty, rooms, instituteSettings } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { timetables, timetableEntries, batches, courses, subjects, faculty, rooms, instituteSettings, lectures } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { Document, Page, Text, View, StyleSheet, Image as PdfImage } from "@react-pdf/renderer";
 import React from "react";
@@ -68,6 +68,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const subjById = new Map(subjectRows.map((s) => [s.id, s]));
   const roomById = new Map(roomRows.map((r) => [r.id, r]));
 
+  const lectureIds = Array.from(new Set(entries.map((e) => e.lectureId).filter((x): x is string => !!x)));
+  const lectureRows = lectureIds.length ? await db.query.lectures.findMany({ where: inArray(lectures.id, lectureIds) }) : [];
+  const lectureById = new Map(lectureRows.map((l) => [l.id, l]));
+
   const streamOfBatch = new Map<string, string>();
   for (const b of batchRows) {
     const course = courseById.get(b.courseId);
@@ -122,7 +126,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
               React.createElement(Text, { style: styles.sectionCell }, b.name),
               ...columns.map((c) => {
                 const match = batchEntries.find((e) => e.startTime === c.startTime);
-                const label = match ? (subjById.get(match.subjectId)?.code || subjById.get(match.subjectId)?.name || "") : "";
+                let label = "";
+                if (match) {
+                  if (match.classType === "DOUBTS") {
+                    label = "DOUBTS";
+                  } else if (match.classType === "OTHER") {
+                    label = match.notes || "";
+                  } else {
+                    const lecture = match.lectureId ? lectureById.get(match.lectureId) : null;
+                    label = lecture ? lecture.code : (match.subjectId ? (subjById.get(match.subjectId)?.code || subjById.get(match.subjectId)?.name || "") : "");
+                  }
+                }
                 return React.createElement(Text, { key: c.startTime, style: styles.timeCell }, label);
               }),
               React.createElement(Text, { style: styles.roomCell }, roomLabel)

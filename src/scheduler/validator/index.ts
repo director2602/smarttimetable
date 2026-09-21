@@ -27,7 +27,7 @@ export function validateSchedule(entries: PlacedEntry[], input: SchedulerInput):
       if (a.batchId === b.batchId) {
         conflicts.push({ type: "BATCH", message: `Batch double-booked on ${a.date} at ${a.startTime}`, entryIds: [i, j] });
       }
-      if (a.facultyId === b.facultyId) {
+      if (a.facultyId && b.facultyId && a.facultyId === b.facultyId) {
         conflicts.push({ type: "FACULTY", message: `Faculty double-booked on ${a.date} at ${a.startTime}`, entryIds: [i, j] });
       }
       if (a.roomId === b.roomId) {

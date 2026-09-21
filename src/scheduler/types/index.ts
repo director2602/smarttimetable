@@ -2,7 +2,7 @@ export interface SlotDef {
   id: string;
   startTime: string; // "HH:MM"
   endTime: string;
-  type: "CLASS" | "BREAK";
+  type: "CLASS" | "BREAK" | "DOUBTS";
   sortOrder: number;
 }
 
@@ -51,24 +51,37 @@ export interface RequirementJob {
   eligibleFacultyIds: string[];
 }
 
+export interface LectureDef {
+  id: string;
+  subjectId: string;
+  code: string;
+  name: string;
+  sortOrder: number;
+}
+
 export interface SchedulerInput {
   weekStartDate: string; // ISO Monday (or first working day)
   dateSlots: DateSlot[]; // all candidate (date, slot) pairs for the week, CLASS type only
+  doubtsDateSlots: DateSlot[]; // candidate (date, slot) pairs of DOUBTS-type slots
   batches: BatchDef[];
   faculty: FacultyDef[];
   rooms: RoomDef[];
   requirements: RequirementJob[];
+  lectures: LectureDef[]; // chapter catalog, used to auto-advance through a subject's syllabus
+  subjectProgress: Map<string, number>; // key `${batchId}:${subjectId}` -> last lecture sortOrder taught
 }
 
 export interface PlacedEntry {
   batchId: string;
-  subjectId: string;
-  facultyId: string;
+  subjectId: string | null;
+  facultyId: string | null;
+  lectureId: string | null;
   roomId: string;
   date: string;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
+  classType: "REGULAR" | "DOUBTS";
 }
 
 export interface UnscheduledReason {
@@ -88,4 +101,5 @@ export interface SchedulerResult {
   unscheduled: UnscheduledReason[];
   qualityScore: number;
   warnings: string[];
+  progressUpdates: Map<string, number>; // key `${batchId}:${subjectId}` -> new last lecture sortOrder (for publish-time persistence)
 }

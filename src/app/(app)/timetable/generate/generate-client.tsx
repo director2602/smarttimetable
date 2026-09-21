@@ -64,7 +64,8 @@ export default function GenerateClient({
       scheduledTotal: a.scheduledTotal,
       unscheduled: a.unscheduled,
       entries: a.entries,
-      warnings: a.warnings
+      warnings: a.warnings,
+      progressUpdates: a.progressUpdates
     });
     setSaving(false);
     router.push(`/timetable/${res.timetableId}`);
@@ -147,6 +148,7 @@ export default function GenerateClient({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div><div className="text-slate-500">Classes required</div><div className="text-lg font-semibold">{active.requiredTotal}</div></div>
                 <div><div className="text-slate-500">Classes scheduled</div><div className="text-lg font-semibold">{active.scheduledTotal}</div></div>
+                <div><div className="text-slate-500">DOUBTS periods placed</div><div className="text-lg font-semibold">{active.entries.filter((e) => e.classType === "DOUBTS").length}</div></div>
                 <div><div className="text-slate-500">Hard conflicts</div><div className="text-lg font-semibold">0</div></div>
                 <div><div className="text-slate-500">Quality Score</div><div className="text-lg font-semibold">{active.qualityScore}/100</div></div>
               </div>

@@ -43,6 +43,13 @@
       "when": 1789670132136,
       "tag": "0005_new_moondragon",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789985661497,
+      "tag": "0006_dapper_johnny_blaze",
+      "breakpoints": true
     }
   ]
 }

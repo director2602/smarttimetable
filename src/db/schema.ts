@@ -280,18 +280,37 @@ export const timetables = pgTable("timetables", {
   ...timestamps
 });
 
+export const lectures = pgTable("lectures", {
+  id: id(),
+  organizationId: text("organization_id").notNull().references(() => organizations.id),
+  subjectId: text("subject_id").notNull().references(() => subjects.id),
+  code: text("code").notNull(), // e.g. "PHY-0002"
+  name: text("name").notNull(), // e.g. "Motion in a Plane"
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...timestamps
+});
+
+export const batchSubjectProgress = pgTable("batch_subject_progress", {
+  id: id(),
+  batchId: text("batch_id").notNull().references(() => batches.id),
+  subjectId: text("subject_id").notNull().references(() => subjects.id),
+  lastLectureSortOrder: integer("last_lecture_sort_order").notNull().default(0),
+  ...timestamps
+}, (t) => ({ uq: uniqueIndex("batch_subject_progress_uq").on(t.batchId, t.subjectId) }));
+
 export const timetableEntries = pgTable("timetable_entries", {
   id: id(),
   timetableId: text("timetable_id").notNull().references(() => timetables.id),
   batchId: text("batch_id").notNull().references(() => batches.id),
-  subjectId: text("subject_id").notNull().references(() => subjects.id),
-  facultyId: text("faculty_id").notNull().references(() => faculty.id),
+  subjectId: text("subject_id").references(() => subjects.id), // null for DOUBTS/self-study periods
+  facultyId: text("faculty_id").references(() => faculty.id), // null for DOUBTS/self-study periods
+  lectureId: text("lecture_id").references(() => lectures.id), // which chapter, if the subject tracks chapters
   roomId: text("room_id").notNull().references(() => rooms.id),
   date: text("date").notNull(),
   dayOfWeek: integer("day_of_week").notNull(),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
-  classType: text("class_type").notNull().default("REGULAR"),
+  classType: text("class_type").notNull().default("REGULAR"), // REGULAR | DOUBTS
   notes: text("notes"),
   ...timestamps
 }, (t) => ({

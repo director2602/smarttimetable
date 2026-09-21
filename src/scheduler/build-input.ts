@@ -3,10 +3,10 @@ import {
   batches, batchSubjectRequirements, batchAvailability, batchTimeSlots, subjects,
   faculty, facultySubjects, facultyBatches, facultyAvailability, facultyBlockedSlots,
   rooms, roomAvailability, roomBlockedSlots,
-  timeSlots, holidays, workingDays
+  timeSlots, holidays, workingDays, lectures, batchSubjectProgress
 } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import type { SchedulerInput, DateSlot, FacultyDef, RoomDef, BatchDef, RequirementJob } from "./types";
+import { eq, and, inArray } from "drizzle-orm";
+import type { SchedulerInput, DateSlot, FacultyDef, RoomDef, BatchDef, RequirementJob, LectureDef } from "./types";
 
 function addDays(iso: string, n: number) {
   const d = new Date(iso);
@@ -22,6 +22,30 @@ function availabilityMap(rows: { dayOfWeek: number; available: boolean; startTim
   return m;
 }
 
+function buildDateSlots(
+  weekStartDate: string,
+  slotType: "CLASS" | "DOUBTS",
+  allSlots: { id: string; startTime: string; endTime: string; sortOrder: number; type: string; daysOfWeek: number[] | null }[],
+  workingDaySet: Set<number>,
+  holidayDates: Set<string>
+): DateSlot[] {
+  const typeSlots = allSlots.filter((s) => s.type === slotType);
+  const dateSlots: DateSlot[] = [];
+  for (let i = 0; i < 7; i++) {
+    const date = addDays(weekStartDate, i);
+    const dayOfWeek = new Date(date).getDay();
+    if (!workingDaySet.has(dayOfWeek)) continue;
+    if (holidayDates.has(date)) continue;
+    const slotsForThisDay = typeSlots
+      .filter((s) => !s.daysOfWeek || s.daysOfWeek.length === 0 || s.daysOfWeek.includes(dayOfWeek))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    for (const s of slotsForThisDay) {
+      dateSlots.push({ date, dayOfWeek, slot: { id: s.id, startTime: s.startTime, endTime: s.endTime, type: slotType, sortOrder: s.sortOrder } });
+    }
+  }
+  return dateSlots;
+}
+
 export async function buildSchedulerInput(params: {
   organizationId: string;
   academicSessionId: string;
@@ -32,7 +56,7 @@ export async function buildSchedulerInput(params: {
   const orgId = params.organizationId;
 
   const [allSlots, allHolidays, allWorkingDays] = await Promise.all([
-    db.query.timeSlots.findMany({ where: and(eq(timeSlots.organizationId, orgId), eq(timeSlots.type, "CLASS")) }),
+    db.query.timeSlots.findMany({ where: and(eq(timeSlots.organizationId, orgId), inArray(timeSlots.type, ["CLASS", "DOUBTS"])) }),
     db.query.holidays.findMany({ where: eq(holidays.organizationId, orgId) }),
     db.query.workingDays.findMany({ where: eq(workingDays.organizationId, orgId) })
   ]);
@@ -44,19 +68,8 @@ export async function buildSchedulerInput(params: {
       : [1, 2, 3, 4, 5, 6] // default Mon-Sat if not configured
   );
 
-  const dateSlots: DateSlot[] = [];
-  for (let i = 0; i < 7; i++) {
-    const date = addDays(params.weekStartDate, i);
-    const dayOfWeek = new Date(date).getDay();
-    if (!workingDaySet.has(dayOfWeek)) continue;
-    if (holidayDates.has(date)) continue;
-    const slotsForThisDay = allSlots
-      .filter((s) => !s.daysOfWeek || s.daysOfWeek.length === 0 || s.daysOfWeek.includes(dayOfWeek))
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    for (const s of slotsForThisDay) {
-      dateSlots.push({ date, dayOfWeek, slot: { id: s.id, startTime: s.startTime, endTime: s.endTime, type: "CLASS", sortOrder: s.sortOrder } });
-    }
-  }
+  const dateSlots = buildDateSlots(params.weekStartDate, "CLASS", allSlots, workingDaySet, holidayDates);
+  const doubtsDateSlots = buildDateSlots(params.weekStartDate, "DOUBTS", allSlots, workingDaySet, holidayDates);
 
   const batchWhere = params.batchId
     ? and(eq(batches.organizationId, orgId), eq(batches.id, params.batchId))
@@ -140,13 +153,28 @@ export async function buildSchedulerInput(params: {
     });
   }
 
+  // Chapter catalog + per-batch-subject progress, so the generator can auto-advance
+  // through the syllabus instead of repeating the same lecture every class.
+  const lectureRows = await db.query.lectures.findMany({ where: eq(lectures.organizationId, orgId) });
+  const lectureDefs: LectureDef[] = lectureRows.map((l) => ({ id: l.id, subjectId: l.subjectId, code: l.code, name: l.name, sortOrder: l.sortOrder }));
+
+  const batchIds = batchDefs.map((b) => b.id);
+  const progressRows = batchIds.length
+    ? await db.query.batchSubjectProgress.findMany({ where: inArray(batchSubjectProgress.batchId, batchIds) })
+    : [];
+  const subjectProgress = new Map<string, number>();
+  for (const p of progressRows) subjectProgress.set(`${p.batchId}:${p.subjectId}`, p.lastLectureSortOrder);
+
   return {
     weekStartDate: params.weekStartDate,
     dateSlots,
+    doubtsDateSlots,
     batches: batchDefs,
     faculty: facultyDefs,
     rooms: roomDefs,
-    requirements
+    requirements,
+    lectures: lectureDefs,
+    subjectProgress
   };
 }
 

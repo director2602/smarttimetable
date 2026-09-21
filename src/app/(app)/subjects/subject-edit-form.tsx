@@ -41,13 +41,19 @@ export default function SubjectEditForm({
       className="mt-2 flex flex-wrap items-end gap-2 bg-slate-50 rounded-lg p-3"
       action={(formData) => {
         formData.set("id", subject.id);
-        startTransition(async () => { await editSubject(formData); setEditing(false); router.refresh(); });
+        startTransition(async () => {
+          const res = await editSubject(formData);
+          if (res?.error) { setError(res.error); return; }
+          setEditing(false);
+          router.refresh();
+        });
       }}
     >
       <div><label className="label">Name</label><input name="name" defaultValue={subject.name} required className="input" /></div>
       <div><label className="label">Code</label><input name="code" defaultValue={subject.code} required className="input" /></div>
       <button type="submit" className="btn-primary py-1 px-3 text-xs" disabled={pending}>{pending ? "Saving..." : "Save"}</button>
       <button type="button" className="btn-secondary py-1 px-3 text-xs" onClick={() => setEditing(false)}>Cancel</button>
+      {error && <p className="text-xs text-red-600 w-full">{error}</p>}
     </form>
   );
 }

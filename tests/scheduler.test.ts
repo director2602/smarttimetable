@@ -22,10 +22,13 @@ function baseInput(overrides: Partial<SchedulerInput> = {}): SchedulerInput {
   return {
     weekStartDate: "2026-09-14",
     dateSlots,
+    doubtsDateSlots: [],
     batches: [{ id: "b1", name: "Batch 1", studentCount: 40, maxClassesPerDay: 3, maxConsecutiveClasses: 3, availability: fullAvailability() }],
     faculty: [{ id: "f1", name: "Faculty 1", subjectIds: ["sub1"], batchIds: [], maxClassesPerDay: 3, maxClassesPerWeek: 10, availability: fullAvailability(), blockedSlots: [] }],
     rooms: [{ id: "r1", name: "Room 1", capacity: 50, availability: fullAvailability(), blockedSlots: [] }],
     requirements: [{ id: "b1:sub1", batchId: "b1", subjectId: "sub1", subjectName: "Subject 1", classesPerWeek: 2, minGapDays: 0, eligibleFacultyIds: ["f1"] }],
+    lectures: [],
+    subjectProgress: new Map(),
     ...overrides
   };
 }
@@ -107,6 +110,65 @@ describe("scheduler hard constraints", () => {
     expect(result.unscheduled.length).toBe(1);
     expect(result.unscheduled[0].reasons.length).toBeGreaterThan(0);
     expect(result.unscheduled[0].required).toBe(20);
+  });
+});
+
+describe("chapter sequencing", () => {
+  it("advances through a subject's lecture catalog instead of repeating the same chapter", () => {
+    const input = baseInput({
+      requirements: [{ id: "b1:sub1", batchId: "b1", subjectId: "sub1", subjectName: "Subject 1", classesPerWeek: 3, minGapDays: 0, eligibleFacultyIds: ["f1"] }],
+      lectures: [
+        { id: "l1", subjectId: "sub1", code: "SUB-001", name: "Chapter 1", sortOrder: 1 },
+        { id: "l2", subjectId: "sub1", code: "SUB-002", name: "Chapter 2", sortOrder: 2 },
+        { id: "l3", subjectId: "sub1", code: "SUB-003", name: "Chapter 3", sortOrder: 3 }
+      ]
+    });
+    const result = generateAttempt(input, 1);
+    const lectureIds = result.entries.filter((e) => e.subjectId === "sub1").map((e) => e.lectureId).sort();
+    expect(lectureIds).toEqual(["l1", "l2", "l3"]);
+  });
+
+  it("resumes from stored progress instead of starting over", () => {
+    const progress = new Map([["b1:sub1", 1]]); // chapter 1 (sortOrder 1) already taught
+    const input = baseInput({
+      requirements: [{ id: "b1:sub1", batchId: "b1", subjectId: "sub1", subjectName: "Subject 1", classesPerWeek: 2, minGapDays: 0, eligibleFacultyIds: ["f1"] }],
+      lectures: [
+        { id: "l1", subjectId: "sub1", code: "SUB-001", name: "Chapter 1", sortOrder: 1 },
+        { id: "l2", subjectId: "sub1", code: "SUB-002", name: "Chapter 2", sortOrder: 2 },
+        { id: "l3", subjectId: "sub1", code: "SUB-003", name: "Chapter 3", sortOrder: 3 }
+      ],
+      subjectProgress: progress
+    });
+    const result = generateAttempt(input, 1);
+    const lectureIds = result.entries.filter((e) => e.subjectId === "sub1").map((e) => e.lectureId).sort();
+    expect(lectureIds).toEqual(["l2", "l3"]); // not l1 again
+  });
+});
+
+describe("DOUBTS auto-placement", () => {
+  it("places one DOUBTS period per working day using a DOUBTS-type slot", () => {
+    const doubtsSlot = { id: "doubts1", startTime: "15:00", endTime: "16:00", type: "DOUBTS" as const, sortOrder: 0 };
+    const input = baseInput({
+      requirements: [],
+      doubtsDateSlots: [1, 2, 3].map((dayOfWeek, i) => ({ date: `2026-09-1${4 + i}`, dayOfWeek, slot: doubtsSlot }))
+    });
+    const result = generateAttempt(input, 1);
+    const doubtsEntries = result.entries.filter((e) => e.classType === "DOUBTS");
+    expect(doubtsEntries.length).toBe(3);
+    expect(doubtsEntries.every((e) => e.subjectId === null && e.facultyId === null)).toBe(true);
+  });
+
+  it("never double-books the batch or room when placing DOUBTS alongside regular classes", () => {
+    const doubtsSlot = { id: "doubts1", startTime: "10:00", endTime: "11:00", type: "DOUBTS" as const, sortOrder: 0 };
+    const input = baseInput({
+      doubtsDateSlots: [1, 2, 3].map((dayOfWeek, i) => ({ date: `2026-09-1${4 + i}`, dayOfWeek, slot: doubtsSlot }))
+    });
+    const result = generateAttempt(input, 1);
+    const conflicts = validateSchedule(
+      result.entries.map((e) => ({ ...e })),
+      input
+    );
+    expect(conflicts.filter((c) => c.type === "BATCH" || c.type === "ROOM").length).toBe(0);
   });
 });
 

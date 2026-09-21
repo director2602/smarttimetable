@@ -30,7 +30,7 @@ export default async function ConflictsPage() {
     weekStartDate: latest.weekStartDate
   });
   const conflicts = validateSchedule(
-    entries.map((e) => ({ ...e })),
+    entries.map((e) => ({ ...e, classType: e.classType as "REGULAR" | "DOUBTS" })),
     schedulerInput
   );
 
