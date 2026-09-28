@@ -73,7 +73,14 @@ export function generateAttempt(input: SchedulerInput, seed = 1): SchedulerResul
     const batch = batchById.get(requirement.batchId);
     if (!batch) continue;
 
-    const candidateReasonsSample = new Set<string>();
+    // Track the CLOSEST near-miss (fewest simultaneous violations) rather than the
+    // union of every violation type seen across all candidates tried. With hundreds
+    // of date/faculty/room combinations attempted per job, almost every generic
+    // violation type (room occupied, faculty busy, etc.) will show up for SOME
+    // combination regardless of the actual blocker — so a union is nearly always
+    // the same uninformative 4-item list. The closest miss is the real reason.
+    let minViolationCount = Infinity;
+    let closestReasons: string[] = [];
     let best: { candidate: PlacementCandidate; score: number } | null = null;
 
     const facultyOptions = requirement.eligibleFacultyIds.length
@@ -81,9 +88,10 @@ export function generateAttempt(input: SchedulerInput, seed = 1): SchedulerResul
       : input.faculty.filter((f) => f.subjectIds.includes(requirement.subjectId)).map((f) => f.id);
 
     if (facultyOptions.length === 0) {
-      candidateReasonsSample.add(
+      minViolationCount = 0;
+      closestReasons = [
         `No faculty is assigned to teach ${requirement.subjectName} for this batch — assign a faculty member to this subject and batch under Faculty`
-      );
+      ];
     }
 
     for (const dateSlot of input.dateSlots) {
@@ -112,7 +120,12 @@ export function generateAttempt(input: SchedulerInput, seed = 1): SchedulerResul
           });
 
           if (violations.length > 0) {
-            violations.forEach((v) => candidateReasonsSample.add(v));
+            if (violations.length < minViolationCount) {
+              minViolationCount = violations.length;
+              closestReasons = violations;
+            } else if (violations.length === minViolationCount) {
+              closestReasons = Array.from(new Set([...closestReasons, ...violations]));
+            }
             continue;
           }
 
@@ -175,7 +188,7 @@ export function generateAttempt(input: SchedulerInput, seed = 1): SchedulerResul
         };
         unscheduled.push(entry);
       }
-      const topReasons = Array.from(candidateReasonsSample).slice(0, 4);
+      const topReasons = closestReasons.slice(0, 4);
       entry.reasons = Array.from(new Set([...entry.reasons, ...topReasons]));
     }
   }

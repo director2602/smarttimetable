@@ -66,6 +66,21 @@ describe("scheduler hard constraints", () => {
     expect(result.unscheduled[0].reasons.some((r) => r.includes("capacity"))).toBe(true);
   });
 
+  it("reports the closest near-miss reason instead of every generic violation type seen", () => {
+    // Only blocker is the weekly cap — every slot/room combination is otherwise free.
+    // A union-of-all-reasons implementation would still list unrelated categories
+    // (room occupied, faculty unavailable, etc.) just because *some* combination
+    // tried during the search triggered them; the closest-miss reason should not.
+    const input = baseInput({
+      faculty: [{ id: "f1", name: "Faculty 1", subjectIds: ["sub1"], batchIds: [], maxClassesPerDay: 3, maxClassesPerWeek: 1, availability: baseInput().faculty[0].availability, blockedSlots: [] }],
+      requirements: [{ id: "b1:sub1", batchId: "b1", subjectId: "sub1", subjectName: "Subject 1", classesPerWeek: 2, minGapDays: 0, eligibleFacultyIds: ["f1"] }]
+    });
+    const result = generateAttempt(input, 1);
+    expect(result.scheduledTotal).toBe(1); // first occurrence fits, second hits the weekly cap
+    expect(result.unscheduled.length).toBe(1);
+    expect(result.unscheduled[0].reasons).toEqual(["Faculty weekly class limit reached"]);
+  });
+
   it("respects faculty availability — does not schedule outside available hours", () => {
     const unavailable = new Map<number, { available: boolean }>();
     for (let d = 0; d <= 6; d++) unavailable.set(d, { available: false });
