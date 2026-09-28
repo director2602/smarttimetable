@@ -4,9 +4,10 @@ import { requirePermission } from "@/lib/auth";
 import { buildSchedulerInput } from "@/scheduler/build-input";
 import { generateMultipleAttempts } from "@/scheduler/generator";
 import { db } from "@/db";
-import { timetables, timetableEntries, batchSubjectProgress, auditLogs } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { timetables, timetableEntries, auditLogs } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { advanceChapterProgressForEntries } from "@/lib/chapter-progress";
 
 export async function generateTimetableAction(input: {
   academicSessionId: string;
@@ -57,7 +58,6 @@ export async function saveGeneratedTimetableAction(input: {
     date: string; dayOfWeek: number; startTime: string; endTime: string; classType: "REGULAR" | "DOUBTS";
   }[];
   warnings?: string[];
-  progressUpdates?: [string, number][]; // [`${batchId}:${subjectId}`, lastLectureSortOrder]
 }) {
   const user = await requirePermission("TIMETABLE_CREATE");
 
@@ -81,22 +81,10 @@ export async function saveGeneratedTimetableAction(input: {
     );
   }
 
-  // Persist chapter progress so the NEXT generation picks up where this one left off.
-  // Only ever advances forward — never rolls back if an older draft is saved again.
-  for (const [key, sortOrder] of input.progressUpdates || []) {
-    const [batchId, subjectId] = key.split(":");
-    if (!batchId || !subjectId) continue;
-    const existing = await db.query.batchSubjectProgress.findFirst({
-      where: and(eq(batchSubjectProgress.batchId, batchId), eq(batchSubjectProgress.subjectId, subjectId))
-    });
-    if (existing) {
-      if (sortOrder > existing.lastLectureSortOrder) {
-        await db.update(batchSubjectProgress).set({ lastLectureSortOrder: sortOrder, updatedAt: new Date().toISOString() }).where(eq(batchSubjectProgress.id, existing.id));
-      }
-    } else {
-      await db.insert(batchSubjectProgress).values({ batchId, subjectId, lastLectureSortOrder: sortOrder });
-    }
-  }
+  // NOTE: chapter progress is intentionally NOT advanced here. A draft can be
+  // generated and saved multiple times while comparing quality scores, and it
+  // may never be published. Progress only advances when the timetable is
+  // actually published — see publishTimetableAction below.
 
   await db.insert(auditLogs).values({
     organizationId: user.organizationId,
@@ -133,6 +121,9 @@ export async function publishTimetableAction(timetableId: string) {
     publishedAt: new Date().toISOString(),
     publishedBy: user.id
   }).where(eq(timetables.id, timetableId));
+
+  // Chapter progress advances only now, at publish time — not on every draft save.
+  await advanceChapterProgressForEntries(entries);
 
   await db.insert(auditLogs).values({
     organizationId: user.organizationId,

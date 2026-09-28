@@ -3,7 +3,7 @@ import {
   courses, subjects, rooms, timeSlots, holidays, workingDays,
   batches, batchAvailability, batchSubjectRequirements, academicSessions,
   faculty, facultyAvailability, facultySubjects, facultyBatches,
-  timetables, timetableEntries, batchSubjectProgress, auditLogs
+  timetables, timetableEntries, auditLogs
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import * as XLSX from "xlsx";
@@ -304,20 +304,8 @@ export async function runBulkImport(orgId: string, userId: string, buffer: Buffe
     if (best.entries.length > 0) {
       await db.insert(timetableEntries).values(best.entries.map((e) => ({ timetableId: tt.id, ...e })));
     }
-    for (const [key, sortOrder] of best.progressUpdates.entries()) {
-      const [pBatchId, pSubjectId] = key.split(":");
-      if (!pBatchId || !pSubjectId) continue;
-      const existingProgress = await db.query.batchSubjectProgress.findFirst({
-        where: and(eq(batchSubjectProgress.batchId, pBatchId), eq(batchSubjectProgress.subjectId, pSubjectId))
-      });
-      if (existingProgress) {
-        if (sortOrder > existingProgress.lastLectureSortOrder) {
-          await db.update(batchSubjectProgress).set({ lastLectureSortOrder: sortOrder, updatedAt: new Date().toISOString() }).where(eq(batchSubjectProgress.id, existingProgress.id));
-        }
-      } else {
-        await db.insert(batchSubjectProgress).values({ batchId: pBatchId, subjectId: pSubjectId, lastLectureSortOrder: sortOrder });
-      }
-    }
+    // Chapter progress is intentionally NOT advanced here — this timetable is created
+    // as a DRAFT. Progress only advances once it's published (see publishTimetableAction).
     generation = { timetableId: tt.id, qualityScore: best.qualityScore, requiredTotal: best.requiredTotal, scheduledTotal: best.scheduledTotal, weekStartDate };
   }
 

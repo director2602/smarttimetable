@@ -64,8 +64,7 @@ export default function GenerateClient({
       scheduledTotal: a.scheduledTotal,
       unscheduled: a.unscheduled,
       entries: a.entries,
-      warnings: a.warnings,
-      progressUpdates: a.progressUpdates
+      warnings: a.warnings
     });
     setSaving(false);
     router.push(`/timetable/${res.timetableId}`);

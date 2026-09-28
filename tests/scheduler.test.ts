@@ -176,8 +176,8 @@ describe("validator", () => {
   it("detects a manually-introduced double-booking", () => {
     const input = baseInput();
     const entries = [
-      { batchId: "b1", subjectId: "sub1", facultyId: "f1", roomId: "r1", date: "2026-09-14", dayOfWeek: 1, startTime: "08:00", endTime: "09:00" },
-      { batchId: "b1", subjectId: "sub1", facultyId: "f1", roomId: "r1", date: "2026-09-14", dayOfWeek: 1, startTime: "08:00", endTime: "09:00" }
+      { batchId: "b1", subjectId: "sub1", facultyId: "f1", lectureId: null, classType: "REGULAR" as const, roomId: "r1", date: "2026-09-14", dayOfWeek: 1, startTime: "08:00", endTime: "09:00" },
+      { batchId: "b1", subjectId: "sub1", facultyId: "f1", lectureId: null, classType: "REGULAR" as const, roomId: "r1", date: "2026-09-14", dayOfWeek: 1, startTime: "08:00", endTime: "09:00" }
     ];
     const conflicts = validateSchedule(entries, input);
     expect(conflicts.length).toBeGreaterThan(0);
